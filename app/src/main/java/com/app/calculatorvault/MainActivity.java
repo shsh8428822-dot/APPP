@@ -287,7 +287,6 @@ public class MainActivity extends Activity {
         if (page == Page.SETTINGS) showSettings();
         else if (page == Page.PRIVATE) showPrivateApps();
         else if (page == Page.MANAGE) showManageApps();
-        else if (page == Page.LAUNCHER) showLauncher();
         else showCalculator();
     }
 
