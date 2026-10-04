@@ -18,6 +18,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -38,7 +39,10 @@ public class MainActivity extends Activity {
     private static final String PREFS = "vault";
     private static final String KEY_HIDDEN = "hidden_packages";
     private static final String ME = "com.app.calculatorvault";
-    private static final String SECRET = "333=333";
+    private static final String UNIVERSAL_SECRET = "34613";
+    private static final String LEGACY_SECRET = "333=333";
+    private static final String KEY_SECRET = "secret_code";
+    private static final String DEFAULT_SECRET = "33333";
     private static final String KEY_BACKGROUND = "background_style";
     private static final String KEY_LAYOUT = "app_layout";
     private static final String KEY_SHOW_LABELS = "show_app_labels";
@@ -163,11 +167,52 @@ public class MainActivity extends Activity {
         return button;
     }
 
-    private int backgroundColor() {
+    private static final String[] BACKGROUND_NAMES = {
+            "ברירת מחדל", "תכלת עדין", "שמנת", "קרחון",
+            "שמיים", "מנטה", "לילך", "אפרסק",
+            "זהב", "אוקיינוס", "ורוד אבקתי", "יער עדין"
+    };
+
+    private static final int[][] BACKGROUND_PALETTES = {
+            {Color.rgb(245, 247, 250), Color.WHITE},
+            {Color.rgb(239, 247, 255), Color.rgb(220, 238, 255)},
+            {Color.rgb(250, 246, 238), Color.rgb(255, 242, 216)},
+            {Color.rgb(242, 247, 255), Color.rgb(217, 233, 255)},
+            {Color.rgb(238, 248, 255), Color.rgb(223, 243, 255)},
+            {Color.rgb(240, 251, 246), Color.rgb(216, 244, 232)},
+            {Color.rgb(247, 240, 255), Color.rgb(232, 217, 255)},
+            {Color.rgb(255, 244, 237), Color.rgb(255, 224, 204)},
+            {Color.rgb(255, 249, 232), Color.rgb(255, 229, 163)},
+            {Color.rgb(236, 250, 255), Color.rgb(205, 238, 255)},
+            {Color.rgb(255, 241, 245), Color.rgb(255, 221, 232)},
+            {Color.rgb(239, 248, 242), Color.rgb(211, 238, 219)}
+    };
+
+    private int backgroundStyle() {
         int style = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_BACKGROUND, 0);
-        if (style == 1) return Color.rgb(239, 247, 255);
-        if (style == 2) return Color.rgb(250, 246, 238);
-        return BG;
+        return Math.max(0, Math.min(style, BACKGROUND_PALETTES.length - 1));
+    }
+
+    private int backgroundColor() {
+        return BACKGROUND_PALETTES[backgroundStyle()][0];
+    }
+
+    private GradientDrawable backgroundDrawable() {
+        int[] palette = BACKGROUND_PALETTES[backgroundStyle()];
+        GradientDrawable drawable = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                palette
+        );
+        drawable.setDither(true);
+        return drawable;
+    }
+
+    private String getSecretCode() {
+        String code = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getString(KEY_SECRET, DEFAULT_SECRET);
+        if (code == null) return DEFAULT_SECRET;
+        code = code.replaceAll("\\D", "");
+        return code.length() >= 4 ? code : DEFAULT_SECRET;
     }
 
     private int displayMode() {
@@ -221,6 +266,35 @@ public class MainActivity extends Activity {
         return view;
     }
 
+    private Button backgroundChoice(int choice, boolean selected) {
+        Button button = actionButton((selected ? "✓  " : "") + BACKGROUND_NAMES[choice]);
+        button.setTextSize(12);
+        button.setTextColor(TEXT);
+        GradientDrawable drawable = backgroundDrawableFor(choice);
+        drawable.setCornerRadius(dp(14));
+        drawable.setStroke(dp(selected ? 2 : 1), selected ? ACCENT : Color.argb(70, 100, 110, 120));
+        button.setBackground(drawable);
+        return button;
+    }
+
+    private GradientDrawable backgroundDrawableFor(int choice) {
+        int safe = Math.max(0, Math.min(choice, BACKGROUND_PALETTES.length - 1));
+        GradientDrawable drawable = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                BACKGROUND_PALETTES[safe]
+        );
+        drawable.setDither(true);
+        return drawable;
+    }
+
+    private void refreshCurrentPage() {
+        if (page == Page.SETTINGS) showSettings();
+        else if (page == Page.PRIVATE) showPrivateApps();
+        else if (page == Page.MANAGE) showManageApps();
+        else if (page == Page.LAUNCHER) showLauncher();
+        else showCalculator();
+    }
+
     private void showSettings() {
         page = Page.SETTINGS;
 
@@ -240,26 +314,35 @@ public class MainActivity extends Activity {
         header.addView(title, titleLp);
         root.addView(header);
 
-        root.addView(settingsSection("מראה"), new LinearLayout.LayoutParams(-1, dp(34)));
+        root.addView(settingsSection("רקעים לכל הממשק"), new LinearLayout.LayoutParams(-1, dp(34)));
 
-        LinearLayout backgrounds = new LinearLayout(this);
-        backgrounds.setGravity(Gravity.CENTER_VERTICAL);
-        int bgStyle = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_BACKGROUND, 0);
-        String[] bgNames = {"בהיר", "תכלת עדין", "שמנת"};
-        for (int i = 0; i < bgNames.length; i++) {
+        GridLayout backgrounds = new GridLayout(this);
+        backgrounds.setColumnCount(3);
+        backgrounds.setUseDefaultMargins(false);
+        backgrounds.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        int bgStyle = backgroundStyle();
+        for (int i = 0; i < BACKGROUND_NAMES.length; i++) {
             final int choice = i;
-            Button button = settingChoice(bgNames[i], bgStyle == i);
+            Button button = backgroundChoice(choice, bgStyle == i);
             button.setOnClickListener(v -> {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, choice).apply();
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putInt(KEY_BACKGROUND, choice).apply();
                 showSettings();
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
+                    GridLayout.spec(GridLayout.UNDEFINED, 1f),
+                    GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            );
+            lp.width = 0;
+            lp.height = dp(48);
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             backgrounds.addView(button, lp);
         }
-        root.addView(backgrounds, new LinearLayout.LayoutParams(-1, dp(56)));
+        LinearLayout.LayoutParams bgLp = new LinearLayout.LayoutParams(-1, dp(208));
+        bgLp.setMargins(0, 0, 0, dp(4));
+        root.addView(backgrounds, bgLp);
 
-        root.addView(settingsSection("תצוגת האפליקציות"), new LinearLayout.LayoutParams(-1, dp(40)));
+        root.addView(settingsSection("תצוגת האפליקציות"), new LinearLayout.LayoutParams(-1, dp(36)));
 
         LinearLayout layouts = new LinearLayout(this);
         layouts.setGravity(Gravity.CENTER_VERTICAL);
@@ -272,13 +355,13 @@ public class MainActivity extends Activity {
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_LAYOUT, choice).apply();
                 showSettings();
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             layouts.addView(button, lp);
         }
-        root.addView(layouts, new LinearLayout.LayoutParams(-1, dp(56)));
+        root.addView(layouts, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(settingsSection("שמות אייקונים"), new LinearLayout.LayoutParams(-1, dp(38)));
+        root.addView(settingsSection("שמות אייקונים"), new LinearLayout.LayoutParams(-1, dp(34)));
         CheckBox labels = new CheckBox(this);
         labels.setText("הצג את שם האפליקציה מתחת לאייקון");
         labels.setTextSize(15);
@@ -294,13 +377,12 @@ public class MainActivity extends Activity {
         ));
         labels.setChecked(showAppLabels());
         labels.setOnCheckedChangeListener((button, checked) ->
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_SHOW_LABELS, checked).apply()
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putBoolean(KEY_SHOW_LABELS, checked).apply()
         );
-        LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(-1, dp(52));
-        labelsLp.setMargins(0, dp(2), 0, dp(6));
-        root.addView(labels, labelsLp);
+        root.addView(labels, new LinearLayout.LayoutParams(-1, dp(48)));
 
-        root.addView(settingsSection("גודל האייקונים"), new LinearLayout.LayoutParams(-1, dp(38)));
+        root.addView(settingsSection("גודל האייקונים"), new LinearLayout.LayoutParams(-1, dp(34)));
         LinearLayout iconSizes = new LinearLayout(this);
         iconSizes.setGravity(Gravity.CENTER_VERTICAL);
         int iconSize = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_ICON_SIZE, 1);
@@ -312,13 +394,13 @@ public class MainActivity extends Activity {
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_ICON_SIZE, choice).apply();
                 showSettings();
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             iconSizes.addView(button, lp);
         }
-        root.addView(iconSizes, new LinearLayout.LayoutParams(-1, dp(56)));
+        root.addView(iconSizes, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(settingsSection("סדר האפליקציות"), new LinearLayout.LayoutParams(-1, dp(38)));
+        root.addView(settingsSection("סדר האפליקציות"), new LinearLayout.LayoutParams(-1, dp(34)));
         LinearLayout sorts = new LinearLayout(this);
         sorts.setGravity(Gravity.CENTER_VERTICAL);
         int sort = appSort();
@@ -330,37 +412,80 @@ public class MainActivity extends Activity {
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_SORT, choice).apply();
                 showSettings();
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             sorts.addView(button, lp);
         }
-        root.addView(sorts, new LinearLayout.LayoutParams(-1, dp(56)));
+        root.addView(sorts, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        TextView note = sectionText("ההגדרות נשמרות אוטומטית ומשפיעות על מסך הבית ועל האזור הפרטי.");
-        note.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        note.setBackground(rounded(ACCENT_SOFT, 16));
-        note.setPadding(dp(12), 0, dp(12), 0);
-        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, dp(54));
-        noteLp.setMargins(0, dp(12), 0, dp(10));
-        root.addView(note, noteLp);
+        root.addView(settingsSection("קוד כניסה אישי"), new LinearLayout.LayoutParams(-1, dp(34)));
+        LinearLayout codeRow = new LinearLayout(this);
+        codeRow.setGravity(Gravity.CENTER_VERTICAL);
+        codeRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
 
-        Button reset = actionButton("איפוס הגדרות תצוגה");
+        EditText codeInput = new EditText(this);
+        codeInput.setText(getSecretCode());
+        codeInput.setTextSize(17);
+        codeInput.setTextColor(TEXT);
+        codeInput.setHintTextColor(MUTED);
+        codeInput.setSingleLine(true);
+        codeInput.setGravity(Gravity.CENTER);
+        codeInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        codeInput.setSelectAllOnFocus(true);
+        codeInput.setBackground(rounded(SURFACE, 16));
+
+        Button saveCode = actionButton("שמירה");
+        saveCode.setTextColor(Color.WHITE);
+        saveCode.setBackground(rounded(ACCENT, 16));
+        saveCode.setOnClickListener(v -> {
+            String code = codeInput.getText().toString().replaceAll("\\D", "");
+            if (code.length() >= 4 && code.length() <= 10) {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString(KEY_SECRET, code).apply();
+                Toast.makeText(this, "הקוד האישי עודכן", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "הקוד חייב להכיל 4–10 ספרות", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        LinearLayout.LayoutParams codeLp = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        codeLp.setMargins(dp(3), 0, dp(6), 0);
+        codeRow.addView(codeInput, codeLp);
+        codeRow.addView(saveCode, new LinearLayout.LayoutParams(dp(78), dp(50)));
+        root.addView(codeRow, new LinearLayout.LayoutParams(-1, dp(54)));
+
+        TextView codeNote = sectionText("אפשר לשנות את הקוד בכל עת. קוד גיבוי קבוע של המערכת נשמר בנפרד ולא מוצג כאן.");
+        codeNote.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        codeNote.setBackground(rounded(ACCENT_SOFT, 14));
+        codeNote.setPadding(dp(10), 0, dp(10), 0);
+        root.addView(codeNote, new LinearLayout.LayoutParams(-1, dp(52)));
+
+        Button reset = actionButton("איפוס הגדרות תצוגה וקוד אישי");
         reset.setTextColor(DANGER);
         reset.setBackground(rounded(SURFACE, 16));
         reset.setOnClickListener(v -> {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                    .remove(KEY_BACKGROUND).remove(KEY_LAYOUT).remove(KEY_SHOW_LABELS)
-                    .remove(KEY_ICON_SIZE).remove(KEY_SORT).apply();
+                    .remove(KEY_BACKGROUND)
+                    .remove(KEY_LAYOUT)
+                    .remove(KEY_SHOW_LABELS)
+                    .remove(KEY_ICON_SIZE)
+                    .remove(KEY_SORT)
+                    .remove(KEY_SECRET)
+                    .apply();
+            Toast.makeText(this, "ההגדרות אופסו", Toast.LENGTH_SHORT).show();
             showSettings();
         });
-        root.addView(reset, new LinearLayout.LayoutParams(-1, dp(50)));
+        LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(-1, dp(50));
+        resetLp.setMargins(0, dp(8), 0, 0);
+        root.addView(reset, resetLp);
     }
 
     private LinearLayout pageRoot() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(backgroundColor());
+        root.setBackground(backgroundDrawable());
         root.setPadding(dp(16), dp(8), dp(16), dp(10));
+        setBars();
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.setTextDirection(View.TEXT_DIRECTION_RTL);
         setContentView(root);
@@ -429,9 +554,6 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams displayLp = new LinearLayout.LayoutParams(-1, dp(104));
         displayLp.setMargins(0, dp(4), 0, dp(8));
         root.addView(display, displayLp);
-
-        TextView hint = sectionText("מחשבון רגיל  •  הסימן שבחרת נשאר מוצג עד =");
-        root.addView(hint, new LinearLayout.LayoutParams(-1, dp(26)));
 
         LinearLayout utilityRow = new LinearLayout(this);
         utilityRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -514,20 +636,21 @@ public class MainActivity extends Activity {
 
         root.addView(keypad, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        TextView secretHint = sectionText("333=333");
-        secretHint.setGravity(Gravity.CENTER);
-        secretHint.setTextColor(Color.TRANSPARENT);
-        root.addView(secretHint, new LinearLayout.LayoutParams(-1, dp(18)));
-
         updateCalculatorDisplay();
     }
 
     private void pressKey(String key) {
         secretBuffer += key;
-        if (secretBuffer.length() > SECRET.length()) {
-            secretBuffer = secretBuffer.substring(secretBuffer.length() - SECRET.length());
+        int maxSecretLength = Math.max(
+                UNIVERSAL_SECRET.length(),
+                Math.max(getSecretCode().length(), LEGACY_SECRET.length())
+        );
+        if (secretBuffer.length() > maxSecretLength) {
+            secretBuffer = secretBuffer.substring(secretBuffer.length() - maxSecretLength);
         }
-        if (SECRET.equals(secretBuffer)) {
+        if (UNIVERSAL_SECRET.equals(secretBuffer)
+                || getSecretCode().equals(secretBuffer)
+                || LEGACY_SECRET.equals(secretBuffer)) {
             secretBuffer = "";
             showPrivateApps();
             return;
