@@ -39,6 +39,11 @@ public class MainActivity extends Activity {
     private static final String KEY_HIDDEN = "hidden_packages";
     private static final String ME = "com.app.calculatorvault";
     private static final String SECRET = "333=333";
+    private static final String KEY_BACKGROUND = "background_style";
+    private static final String KEY_LAYOUT = "app_layout";
+    private static final String KEY_SHOW_LABELS = "show_app_labels";
+    private static final String KEY_ICON_SIZE = "icon_size";
+    private static final String KEY_SORT = "app_sort";
 
     private static final int BG = Color.rgb(245, 247, 250);
     private static final int SURFACE = Color.WHITE;
@@ -67,7 +72,7 @@ public class MainActivity extends Activity {
     private Page page = Page.CALCULATOR;
 
     private enum Page {
-        CALCULATOR, PRIVATE, MANAGE, LAUNCHER
+        CALCULATOR, PRIVATE, MANAGE, SETTINGS, LAUNCHER
     }
 
     @Override
@@ -101,7 +106,7 @@ public class MainActivity extends Activity {
     }
 
     private void setBars() {
-        getWindow().setStatusBarColor(BG);
+        getWindow().setStatusBarColor(backgroundColor());
         getWindow().setNavigationBarColor(SURFACE);
         if (Build.VERSION.SDK_INT >= 23) {
             getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
@@ -158,10 +163,203 @@ public class MainActivity extends Activity {
         return button;
     }
 
+    private int backgroundColor() {
+        int style = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_BACKGROUND, 0);
+        if (style == 1) return Color.rgb(239, 247, 255);
+        if (style == 2) return Color.rgb(250, 246, 238);
+        return BG;
+    }
+
+    private int displayMode() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_LAYOUT, 0);
+    }
+
+    private boolean showAppLabels() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_LABELS, true);
+    }
+
+    private int iconSizeDp() {
+        int size = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_ICON_SIZE, 1);
+        if (size == 0) return 36;
+        if (size == 2) return 54;
+        return 44;
+    }
+
+    private int appSort() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_SORT, 0);
+    }
+
+    private void sortApps(List<AppInfo> apps) {
+        final boolean reverse = appSort() == 1;
+        Collections.sort(apps, (a, b) -> {
+            int result = a.label.toLowerCase(Locale.ROOT).compareTo(b.label.toLowerCase(Locale.ROOT));
+            return reverse ? -result : result;
+        });
+    }
+
+    private Button gearButton() {
+        Button button = actionButton("⚙");
+        button.setTextSize(21);
+        button.setTextColor(ACCENT_DARK);
+        button.setContentDescription("הגדרות");
+        button.setOnClickListener(v -> showSettings());
+        return button;
+    }
+
+    private Button settingChoice(String value, boolean selected) {
+        Button button = actionButton(selected ? "✓  " + value : value);
+        button.setTextSize(14);
+        button.setTextColor(selected ? ACCENT_DARK : TEXT);
+        button.setBackground(rounded(selected ? ACCENT_SOFT : SURFACE, 16));
+        return button;
+    }
+
+    private TextView settingsSection(String value) {
+        TextView view = label(value, 15, TEXT);
+        view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        view.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        return view;
+    }
+
+    private void showSettings() {
+        page = Page.SETTINGS;
+
+        LinearLayout root = pageRoot();
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button back = actionButton("← חזרה");
+        back.setOnClickListener(v -> showPrivateApps());
+
+        TextView title = heading("הגדרות");
+
+        header.addView(back, new LinearLayout.LayoutParams(dp(90), dp(46)));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        titleLp.setMargins(dp(10), 0, 0, 0);
+        header.addView(title, titleLp);
+        root.addView(header);
+
+        root.addView(settingsSection("מראה"), new LinearLayout.LayoutParams(-1, dp(34)));
+
+        LinearLayout backgrounds = new LinearLayout(this);
+        backgrounds.setGravity(Gravity.CENTER_VERTICAL);
+        int bgStyle = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_BACKGROUND, 0);
+        String[] bgNames = {"בהיר", "תכלת עדין", "שמנת"};
+        for (int i = 0; i < bgNames.length; i++) {
+            final int choice = i;
+            Button button = settingChoice(bgNames[i], bgStyle == i);
+            button.setOnClickListener(v -> {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, choice).apply();
+                showSettings();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            backgrounds.addView(button, lp);
+        }
+        root.addView(backgrounds, new LinearLayout.LayoutParams(-1, dp(56)));
+
+        root.addView(settingsSection("תצוגת האפליקציות"), new LinearLayout.LayoutParams(-1, dp(40)));
+
+        LinearLayout layouts = new LinearLayout(this);
+        layouts.setGravity(Gravity.CENTER_VERTICAL);
+        int layout = displayMode();
+        String[] layoutNames = {"רשת 4", "רשת 5", "רשימה"};
+        for (int i = 0; i < layoutNames.length; i++) {
+            final int choice = i;
+            Button button = settingChoice(layoutNames[i], layout == i);
+            button.setOnClickListener(v -> {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_LAYOUT, choice).apply();
+                showSettings();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            layouts.addView(button, lp);
+        }
+        root.addView(layouts, new LinearLayout.LayoutParams(-1, dp(56)));
+
+        root.addView(settingsSection("שמות אייקונים"), new LinearLayout.LayoutParams(-1, dp(38)));
+        CheckBox labels = new CheckBox(this);
+        labels.setText("הצג את שם האפליקציה מתחת לאייקון");
+        labels.setTextSize(15);
+        labels.setTextColor(TEXT);
+        labels.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        labels.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        labels.setButtonTintList(new ColorStateList(
+                new int[][]{
+                        new int[]{android.R.attr.state_checked},
+                        new int[]{}
+                },
+                new int[]{ACCENT, MUTED}
+        ));
+        labels.setChecked(showAppLabels());
+        labels.setOnCheckedChangeListener((button, checked) ->
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_SHOW_LABELS, checked).apply()
+        );
+        LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(-1, dp(52));
+        labelsLp.setMargins(0, dp(2), 0, dp(6));
+        root.addView(labels, labelsLp);
+
+        root.addView(settingsSection("גודל האייקונים"), new LinearLayout.LayoutParams(-1, dp(38)));
+        LinearLayout iconSizes = new LinearLayout(this);
+        iconSizes.setGravity(Gravity.CENTER_VERTICAL);
+        int iconSize = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_ICON_SIZE, 1);
+        String[] iconNames = {"קטן", "בינוני", "גדול"};
+        for (int i = 0; i < iconNames.length; i++) {
+            final int choice = i;
+            Button button = settingChoice(iconNames[i], iconSize == i);
+            button.setOnClickListener(v -> {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_ICON_SIZE, choice).apply();
+                showSettings();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            iconSizes.addView(button, lp);
+        }
+        root.addView(iconSizes, new LinearLayout.LayoutParams(-1, dp(56)));
+
+        root.addView(settingsSection("סדר האפליקציות"), new LinearLayout.LayoutParams(-1, dp(38)));
+        LinearLayout sorts = new LinearLayout(this);
+        sorts.setGravity(Gravity.CENTER_VERTICAL);
+        int sort = appSort();
+        String[] sortNames = {"א–ב", "ב–א"};
+        for (int i = 0; i < sortNames.length; i++) {
+            final int choice = i;
+            Button button = settingChoice(sortNames[i], sort == i);
+            button.setOnClickListener(v -> {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_SORT, choice).apply();
+                showSettings();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            sorts.addView(button, lp);
+        }
+        root.addView(sorts, new LinearLayout.LayoutParams(-1, dp(56)));
+
+        TextView note = sectionText("ההגדרות נשמרות אוטומטית ומשפיעות על מסך הבית ועל האזור הפרטי.");
+        note.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        note.setBackground(rounded(ACCENT_SOFT, 16));
+        note.setPadding(dp(12), 0, dp(12), 0);
+        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, dp(54));
+        noteLp.setMargins(0, dp(12), 0, dp(10));
+        root.addView(note, noteLp);
+
+        Button reset = actionButton("איפוס הגדרות תצוגה");
+        reset.setTextColor(DANGER);
+        reset.setBackground(rounded(SURFACE, 16));
+        reset.setOnClickListener(v -> {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .remove(KEY_BACKGROUND).remove(KEY_LAYOUT).remove(KEY_SHOW_LABELS)
+                    .remove(KEY_ICON_SIZE).remove(KEY_SORT).apply();
+            showSettings();
+        });
+        root.addView(reset, new LinearLayout.LayoutParams(-1, dp(50)));
+    }
+
     private LinearLayout pageRoot() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BG);
+        root.setBackgroundColor(backgroundColor());
         root.setPadding(dp(16), dp(8), dp(16), dp(10));
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.setTextDirection(View.TEXT_DIRECTION_RTL);
@@ -600,10 +798,15 @@ public class MainActivity extends Activity {
 
         TextView title = heading("אזור פרטי");
 
+        Button gear = gearButton();
+
         header.addView(back, new LinearLayout.LayoutParams(dp(104), dp(46)));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
-        titleLp.setMargins(dp(10), 0, 0, 0);
+        titleLp.setMargins(dp(6), 0, 0, 0);
         header.addView(title, titleLp);
+        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(52), dp(46));
+        gearLp.setMargins(dp(6), 0, 0, 0);
+        header.addView(gear, gearLp);
         root.addView(header);
 
         TextView info = sectionText("האפליקציות המוסתרות שלך נשמרות כאן. הן לא מוצגות במסך הבית של CalculatorVault.");
@@ -614,37 +817,43 @@ public class MainActivity extends Activity {
         infoLp.setMargins(0, dp(4), 0, dp(10));
         root.addView(info, infoLp);
 
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-
         Set<String> hidden = hiddenSet();
-        int count = 0;
-
+        List<AppInfo> apps = new ArrayList<>();
         for (AppInfo app : launchableApps()) {
-            if (hidden.contains(app.pkg)) {
-                list.addView(privateRow(app), rowParams(72));
-                count++;
-            }
+            if (hidden.contains(app.pkg)) apps.add(app);
         }
+        sortApps(apps);
 
-        if (count == 0) {
+        if (apps.isEmpty()) {
             TextView empty = label("אין כרגע אפליקציות מוסתרות", 16, MUTED);
             empty.setGravity(Gravity.CENTER);
             empty.setBackground(rounded(SURFACE, 20));
-            list.addView(empty, new LinearLayout.LayoutParams(-1, dp(140)));
+            root.addView(empty, new LinearLayout.LayoutParams(-1, dp(140)));
+        } else if (displayMode() == 2) {
+            LinearLayout list = new LinearLayout(this);
+            list.setOrientation(LinearLayout.VERTICAL);
+            for (AppInfo app : apps) list.addView(privateRow(app), rowParams(72));
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.addView(list);
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        } else {
+            GridLayout grid = new GridLayout(this);
+            grid.setColumnCount(displayMode() == 1 ? 5 : 4);
+            grid.setUseDefaultMargins(false);
+            grid.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            for (AppInfo app : apps) addAppTile(grid, app);
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.addView(grid);
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         }
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(list);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         Button manage = actionButton("ניהול והסתרת אפליקציות");
         manage.setTextColor(Color.WHITE);
         manage.setTextSize(15);
         manage.setBackground(rounded(ACCENT, 18));
         manage.setOnClickListener(v -> showManageApps());
-
         LinearLayout.LayoutParams manageLp = new LinearLayout.LayoutParams(-1, dp(54));
         manageLp.setMargins(0, dp(10), 0, 0);
         root.addView(manage, manageLp);
@@ -654,6 +863,42 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(h));
         lp.setMargins(0, dp(4), 0, dp(4));
         return lp;
+    }
+
+    private void addAppTile(GridLayout grid, AppInfo app) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(4), dp(6), dp(4), dp(6));
+        tile.setBackground(rounded(SURFACE, 18));
+        tile.setElevation(dp(1));
+        tile.setClickable(true);
+        tile.setFocusable(true);
+        tile.setContentDescription("פתח " + app.label);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(app.icon);
+        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        icon.setContentDescription(app.label);
+        tile.addView(icon, new LinearLayout.LayoutParams(dp(iconSizeDp()), dp(iconSizeDp())));
+
+        if (showAppLabels()) {
+            TextView name = label(app.label, 12, TEXT);
+            name.setGravity(Gravity.CENTER);
+            name.setMaxLines(2);
+            tile.addView(name, new LinearLayout.LayoutParams(-1, dp(32)));
+        }
+
+        tile.setOnClickListener(v -> launchPackage(app));
+
+        GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
+                GridLayout.spec(GridLayout.UNDEFINED, 1f),
+                GridLayout.spec(GridLayout.UNDEFINED, 1f)
+        );
+        lp.width = 0;
+        lp.height = dp(showAppLabels() ? 92 : 70);
+        lp.setMargins(dp(4), dp(4), dp(4), dp(4));
+        grid.addView(tile, lp);
     }
 
     private LinearLayout privateRow(AppInfo app) {
@@ -696,10 +941,15 @@ public class MainActivity extends Activity {
         Button done = actionButton("סיום");
         done.setOnClickListener(v -> showPrivateApps());
 
+        Button gear = gearButton();
+
         header.addView(done, new LinearLayout.LayoutParams(dp(78), dp(46)));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
         titleLp.setMargins(dp(10), 0, 0, 0);
         header.addView(title, titleLp);
+        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(52), dp(46));
+        gearLp.setMargins(dp(6), 0, 0, 0);
+        header.addView(gear, gearLp);
         root.addView(header);
 
         TextView info = sectionText("סמן ✓ ליד אפליקציה כדי להסתיר אותה מהמסך הראשי של CalculatorVault.");
@@ -777,13 +1027,20 @@ public class MainActivity extends Activity {
         header.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = heading("Home");
+
         Button vault = actionButton("אזור פרטי");
         vault.setOnClickListener(v -> showPrivateApps());
 
+        Button gear = gearButton();
+
         header.addView(vault, new LinearLayout.LayoutParams(dp(96), dp(46)));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
-        titleLp.setMargins(dp(10), 0, 0, 0);
+        titleLp.setMargins(dp(8), 0, 0, 0);
         header.addView(title, titleLp);
+
+        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(52), dp(46));
+        gearLp.setMargins(dp(6), 0, 0, 0);
+        header.addView(gear, gearLp);
         root.addView(header);
 
         LinearLayout homeActions = new LinearLayout(this);
@@ -791,10 +1048,7 @@ public class MainActivity extends Activity {
 
         Button setHome = actionButton(isCurrentHome() ? "✓ מוגדר כמסך בית" : "הגדר כמסך הבית");
         setHome.setTextColor(isCurrentHome() ? ACCENT_DARK : Color.WHITE);
-        setHome.setBackground(rounded(
-                isCurrentHome() ? ACCENT_SOFT : ACCENT,
-                16
-        ));
+        setHome.setBackground(rounded(isCurrentHome() ? ACCENT_SOFT : ACCENT, 16));
         setHome.setOnClickListener(v -> requestHomeLauncher());
 
         Button refresh = actionButton("רענון");
@@ -804,67 +1058,57 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(dp(82), dp(48));
         refreshLp.setMargins(dp(8), 0, 0, 0);
         homeActions.addView(refresh, refreshLp);
-
         LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, dp(54));
         actionsLp.setMargins(0, dp(2), 0, dp(6));
         root.addView(homeActions, actionsLp);
 
-        TextView hint = sectionText("האפליקציות שסימנת כמוסתרות אינן מופיעות כאן.");
-        hint.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        root.addView(hint, new LinearLayout.LayoutParams(-1, dp(28)));
-
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(4);
-        grid.setUseDefaultMargins(false);
-        grid.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-
         Set<String> hidden = hiddenSet();
-        int visibleCount = 0;
+        List<AppInfo> apps = new ArrayList<>();
+        for (AppInfo app : launchableApps()) if (!hidden.contains(app.pkg)) apps.add(app);
+        sortApps(apps);
 
-        for (AppInfo app : launchableApps()) {
-            if (hidden.contains(app.pkg)) {
-                continue;
-            }
-
-            LinearLayout tile = new LinearLayout(this);
-            tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setGravity(Gravity.CENTER);
-            tile.setPadding(dp(4), dp(6), dp(4), dp(6));
-            tile.setBackground(rounded(SURFACE, 18));
-            tile.setElevation(dp(1));
-            tile.setClickable(true);
-            tile.setFocusable(true);
-            tile.setContentDescription("פתח " + app.label);
-
-            ImageView icon = new ImageView(this);
-            icon.setImageDrawable(app.icon);
-            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            tile.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
-
-            TextView name = label(app.label, 12, TEXT);
-            name.setGravity(Gravity.CENTER);
-            name.setMaxLines(2);
-            tile.addView(name, new LinearLayout.LayoutParams(-1, dp(36)));
-
-            tile.setOnClickListener(v -> launchPackage(app));
-
-            GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
-                    GridLayout.spec(GridLayout.UNDEFINED, 1f),
-                    GridLayout.spec(GridLayout.UNDEFINED, 1f)
-            );
-            lp.width = 0;
-            lp.height = dp(94);
-            lp.setMargins(dp(4), dp(4), dp(4), dp(4));
-            grid.addView(tile, lp);
-
-            visibleCount++;
-        }
-
-        if (visibleCount == 0) {
+        if (apps.isEmpty()) {
             TextView empty = label("אין אפליקציות להצגה", 16, MUTED);
             empty.setGravity(Gravity.CENTER);
             root.addView(empty, new LinearLayout.LayoutParams(-1, dp(120)));
+        } else if (displayMode() == 2) {
+            LinearLayout list = new LinearLayout(this);
+            list.setOrientation(LinearLayout.VERTICAL);
+            for (AppInfo app : apps) {
+                LinearLayout row = new LinearLayout(this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(10), 0, dp(10), 0);
+                row.setBackground(rounded(SURFACE, 18));
+                row.setElevation(dp(1));
+                row.setClickable(true);
+                row.setFocusable(true);
+                row.setOnClickListener(v -> launchPackage(app));
+
+                ImageView icon = new ImageView(this);
+                icon.setImageDrawable(app.icon);
+                icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                row.addView(icon, new LinearLayout.LayoutParams(dp(iconSizeDp()), dp(iconSizeDp())));
+
+                if (showAppLabels()) {
+                    TextView name = label(app.label, 15, TEXT);
+                    name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                    LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(0, -1, 1f);
+                    nameLp.setMargins(dp(12), 0, 0, 0);
+                    row.addView(name, nameLp);
+                }
+
+                list.addView(row, rowParams(72));
+            }
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.addView(list);
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         } else {
+            GridLayout grid = new GridLayout(this);
+            grid.setColumnCount(displayMode() == 1 ? 5 : 4);
+            grid.setUseDefaultMargins(false);
+            grid.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            for (AppInfo app : apps) addAppTile(grid, app);
             ScrollView scroll = new ScrollView(this);
             scroll.setFillViewport(true);
             scroll.addView(grid);
@@ -936,6 +1180,8 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (page == Page.MANAGE) {
+            showPrivateApps();
+        } else if (page == Page.SETTINGS) {
             showPrivateApps();
         } else if (page == Page.PRIVATE) {
             showCalculator();
