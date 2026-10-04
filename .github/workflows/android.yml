@@ -27,14 +27,21 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build APK
-        run: gradle --no-daemon clean assembleDebug
+      - name: Prepare stable signing key
+        shell: bash
+        run: |
+          test -s signing/CalculatorVault.keystore.b64
+          base64 --decode signing/CalculatorVault.keystore.b64 > signing/CalculatorVault.keystore
+          test -s signing/CalculatorVault.keystore
+
+      - name: Build release APK
+        run: gradle --no-daemon clean assembleRelease
 
       - name: Validate APK exists
         run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          file app/build/outputs/apk/debug/app-debug.apk
-          unzip -t app/build/outputs/apk/debug/app-debug.apk >/dev/null
+          test -s app/build/outputs/apk/release/app-release.apk
+          file app/build/outputs/apk/release/app-release.apk
+          unzip -t app/build/outputs/apk/release/app-release.apk >/dev/null
 
       - name: Verify APK signature and metadata
         shell: bash
@@ -43,27 +50,36 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
           test -n "$AAPT"
-          "$APKSIGNER" verify --verbose app/build/outputs/apk/debug/app-debug.apk
-          "$AAPT" dump badging app/build/outputs/apk/debug/app-debug.apk | tee apk-badging.txt
+          "$APKSIGNER" verify --verbose app/build/outputs/apk/release/app-release.apk
+          "$AAPT" dump badging app/build/outputs/apk/release/app-release.apk | tee apk-badging.txt
           grep -q "package: name='com.app.calculatorvault'" apk-badging.txt
           grep -q "sdkVersion:'21'" apk-badging.txt
+          grep -q "versionCode:'4'" apk-badging.txt
+          grep -q "versionName:'2.2.0'" apk-badging.txt
+
+      - name: Verify stable signer certificate
+        shell: bash
+        run: |
+          keytool -list -v             -keystore signing/CalculatorVault.keystore             -storepass 'CVaultStable2026!'             -alias calculatorvault > signer.txt
+          grep -q "Alias name: calculatorvault" signer.txt
+          grep -q "Entry type: PrivateKeyEntry" signer.txt
 
       - name: Check APK is a normal universal Java APK
         shell: bash
         run: |
-          unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -q '^classes.dex$'
-          if unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep -q '^lib/'; then
+          unzip -Z1 app/build/outputs/apk/release/app-release.apk | grep -q '^classes.dex$'
+          if unzip -Z1 app/build/outputs/apk/release/app-release.apk | grep -q '^lib/'; then
             echo "Unexpected native libraries found:"
-            unzip -Z1 app/build/outputs/apk/debug/app-debug.apk | grep '^lib/' || true
+            unzip -Z1 app/build/outputs/apk/release/app-release.apk | grep '^lib/' || true
             exit 1
           fi
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk CalculatorVault-v2.1.0.apk
+        run: cp app/build/outputs/apk/release/app-release.apk CalculatorVault-v2.2.0.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: CalculatorVault-v2.1.0-APK
-          path: CalculatorVault-v2.1.0.apk
+          name: CalculatorVault-v2.2.0-APK
+          path: CalculatorVault-v2.2.0.apk
           if-no-files-found: error
