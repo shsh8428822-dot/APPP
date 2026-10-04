@@ -1,7 +1,6 @@
 package com.app.calculatorvault;
 
 import android.app.Activity;
-import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -76,37 +75,21 @@ public class MainActivity extends Activity {
     private Page page = Page.CALCULATOR;
 
     private enum Page {
-        CALCULATOR, PRIVATE, MANAGE, SETTINGS, LAUNCHER
+        CALCULATOR, PRIVATE, MANAGE, SETTINGS
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setBars();
-
-        if (isHomeIntent(getIntent())) {
-            showLauncher();
-        } else {
-            showCalculator();
-        }
+        showCalculator();
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-
-        if (isHomeIntent(intent)) {
-            showLauncher();
-        } else {
-            showCalculator();
-        }
-    }
-
-    private boolean isHomeIntent(Intent intent) {
-        return intent != null
-                && intent.getCategories() != null
-                && intent.getCategories().contains(Intent.CATEGORY_HOME);
+        showCalculator();
     }
 
     private void setBars() {
@@ -312,21 +295,33 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
         titleLp.setMargins(dp(10), 0, 0, 0);
         header.addView(title, titleLp);
-        root.addView(header);
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
 
-        root.addView(settingsSection("רקעים לכל הממשק"), new LinearLayout.LayoutParams(-1, dp(34)));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setSmoothScrollingEnabled(true);
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(0, dp(2), 0, dp(18));
+        content.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        content.setFocusable(true);
+        content.setFocusableInTouchMode(true);
+
+        content.addView(settingsSection("רקעים לממשק — כולל המחשבון"), new LinearLayout.LayoutParams(-1, dp(38)));
 
         GridLayout backgrounds = new GridLayout(this);
         backgrounds.setColumnCount(3);
         backgrounds.setUseDefaultMargins(false);
         backgrounds.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         int bgStyle = backgroundStyle();
+
         for (int i = 0; i < BACKGROUND_NAMES.length; i++) {
             final int choice = i;
             Button button = backgroundChoice(choice, bgStyle == i);
             button.setOnClickListener(v -> {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                        .putInt(KEY_BACKGROUND, choice).apply();
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, choice).apply();
                 showSettings();
             });
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
@@ -334,16 +329,22 @@ public class MainActivity extends Activity {
                     GridLayout.spec(GridLayout.UNDEFINED, 1f)
             );
             lp.width = 0;
-            lp.height = dp(48);
-            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            lp.height = dp(58);
+            lp.setMargins(dp(4), dp(4), dp(4), dp(4));
             backgrounds.addView(button, lp);
         }
-        LinearLayout.LayoutParams bgLp = new LinearLayout.LayoutParams(-1, dp(208));
-        bgLp.setMargins(0, 0, 0, dp(4));
-        root.addView(backgrounds, bgLp);
+        int backgroundRows = (BACKGROUND_NAMES.length + 2) / 3;
+        content.addView(backgrounds, new LinearLayout.LayoutParams(-1, dp(backgroundRows * 66 + 4)));
 
-        root.addView(settingsSection("תצוגת האפליקציות"), new LinearLayout.LayoutParams(-1, dp(36)));
+        TextView wallpaperNote = sectionText("כל בחירת רקע נשמרת אוטומטית ומשנה גם את מסך המחשבון.");
+        wallpaperNote.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        wallpaperNote.setBackground(rounded(ACCENT_SOFT, 14));
+        wallpaperNote.setPadding(dp(10), 0, dp(10), 0);
+        LinearLayout.LayoutParams wallpaperNoteLp = new LinearLayout.LayoutParams(-1, dp(48));
+        wallpaperNoteLp.setMargins(0, dp(6), 0, dp(8));
+        content.addView(wallpaperNote, wallpaperNoteLp);
 
+        content.addView(settingsSection("תצוגת האפליקציות"), new LinearLayout.LayoutParams(-1, dp(36)));
         LinearLayout layouts = new LinearLayout(this);
         layouts.setGravity(Gravity.CENTER_VERTICAL);
         int layout = displayMode();
@@ -359,9 +360,9 @@ public class MainActivity extends Activity {
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             layouts.addView(button, lp);
         }
-        root.addView(layouts, new LinearLayout.LayoutParams(-1, dp(52)));
+        content.addView(layouts, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(settingsSection("שמות אייקונים"), new LinearLayout.LayoutParams(-1, dp(34)));
+        content.addView(settingsSection("שמות אייקונים"), new LinearLayout.LayoutParams(-1, dp(34)));
         CheckBox labels = new CheckBox(this);
         labels.setText("הצג את שם האפליקציה מתחת לאייקון");
         labels.setTextSize(15);
@@ -377,12 +378,11 @@ public class MainActivity extends Activity {
         ));
         labels.setChecked(showAppLabels());
         labels.setOnCheckedChangeListener((button, checked) ->
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                        .putBoolean(KEY_SHOW_LABELS, checked).apply()
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_SHOW_LABELS, checked).apply()
         );
-        root.addView(labels, new LinearLayout.LayoutParams(-1, dp(48)));
+        content.addView(labels, new LinearLayout.LayoutParams(-1, dp(48)));
 
-        root.addView(settingsSection("גודל האייקונים"), new LinearLayout.LayoutParams(-1, dp(34)));
+        content.addView(settingsSection("גודל האייקונים"), new LinearLayout.LayoutParams(-1, dp(34)));
         LinearLayout iconSizes = new LinearLayout(this);
         iconSizes.setGravity(Gravity.CENTER_VERTICAL);
         int iconSize = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_ICON_SIZE, 1);
@@ -398,9 +398,9 @@ public class MainActivity extends Activity {
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             iconSizes.addView(button, lp);
         }
-        root.addView(iconSizes, new LinearLayout.LayoutParams(-1, dp(52)));
+        content.addView(iconSizes, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(settingsSection("סדר האפליקציות"), new LinearLayout.LayoutParams(-1, dp(34)));
+        content.addView(settingsSection("סדר האפליקציות"), new LinearLayout.LayoutParams(-1, dp(34)));
         LinearLayout sorts = new LinearLayout(this);
         sorts.setGravity(Gravity.CENTER_VERTICAL);
         int sort = appSort();
@@ -416,9 +416,9 @@ public class MainActivity extends Activity {
             lp.setMargins(dp(3), dp(3), dp(3), dp(3));
             sorts.addView(button, lp);
         }
-        root.addView(sorts, new LinearLayout.LayoutParams(-1, dp(52)));
+        content.addView(sorts, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(settingsSection("קוד כניסה אישי"), new LinearLayout.LayoutParams(-1, dp(34)));
+        content.addView(settingsSection("קוד כניסה אישי"), new LinearLayout.LayoutParams(-1, dp(34)));
         LinearLayout codeRow = new LinearLayout(this);
         codeRow.setGravity(Gravity.CENTER_VERTICAL);
         codeRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
@@ -440,8 +440,7 @@ public class MainActivity extends Activity {
         saveCode.setOnClickListener(v -> {
             String code = codeInput.getText().toString().replaceAll("\\D", "");
             if (code.length() >= 4 && code.length() <= 10) {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                        .putString(KEY_SECRET, code).apply();
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_SECRET, code).apply();
                 Toast.makeText(this, "הקוד האישי עודכן", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(this, "הקוד חייב להכיל 4–10 ספרות", Toast.LENGTH_SHORT).show();
@@ -452,32 +451,31 @@ public class MainActivity extends Activity {
         codeLp.setMargins(dp(3), 0, dp(6), 0);
         codeRow.addView(codeInput, codeLp);
         codeRow.addView(saveCode, new LinearLayout.LayoutParams(dp(78), dp(50)));
-        root.addView(codeRow, new LinearLayout.LayoutParams(-1, dp(54)));
+        content.addView(codeRow, new LinearLayout.LayoutParams(-1, dp(54)));
 
-        TextView codeNote = sectionText("אפשר לשנות את הקוד בכל עת. קוד גיבוי קבוע של המערכת נשמר בנפרד ולא מוצג כאן.");
+        TextView codeNote = sectionText("אפשר לשנות את הקוד בכל עת. קוד גיבוי קבוע נשמר בנפרד.");
         codeNote.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         codeNote.setBackground(rounded(ACCENT_SOFT, 14));
         codeNote.setPadding(dp(10), 0, dp(10), 0);
-        root.addView(codeNote, new LinearLayout.LayoutParams(-1, dp(52)));
+        content.addView(codeNote, new LinearLayout.LayoutParams(-1, dp(50)));
 
         Button reset = actionButton("איפוס הגדרות תצוגה וקוד אישי");
         reset.setTextColor(DANGER);
         reset.setBackground(rounded(SURFACE, 16));
         reset.setOnClickListener(v -> {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                    .remove(KEY_BACKGROUND)
-                    .remove(KEY_LAYOUT)
-                    .remove(KEY_SHOW_LABELS)
-                    .remove(KEY_ICON_SIZE)
-                    .remove(KEY_SORT)
-                    .remove(KEY_SECRET)
-                    .apply();
+                    .remove(KEY_BACKGROUND).remove(KEY_LAYOUT).remove(KEY_SHOW_LABELS)
+                    .remove(KEY_ICON_SIZE).remove(KEY_SORT).remove(KEY_SECRET).apply();
             Toast.makeText(this, "ההגדרות אופסו", Toast.LENGTH_SHORT).show();
             showSettings();
         });
         LinearLayout.LayoutParams resetLp = new LinearLayout.LayoutParams(-1, dp(50));
         resetLp.setMargins(0, dp(8), 0, 0);
-        root.addView(reset, resetLp);
+        content.addView(reset, resetLp);
+
+        scroll.addView(content);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        content.requestFocus();
     }
 
     private LinearLayout pageRoot() {
@@ -488,6 +486,7 @@ public class MainActivity extends Activity {
         setBars();
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.setTextDirection(View.TEXT_DIRECTION_RTL);
+        setBars();
         setContentView(root);
         return root;
     }
@@ -526,10 +525,15 @@ public class MainActivity extends Activity {
         TextView title = heading("Calculator");
         title.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
 
+        Button gear = gearButton();
+
         header.addView(badge, new LinearLayout.LayoutParams(dp(62), dp(30)));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(50), 1);
         titleLp.setMargins(dp(10), 0, 0, 0);
         header.addView(title, titleLp);
+        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(52), dp(46));
+        gearLp.setMargins(dp(6), 0, 0, 0);
+        header.addView(gear, gearLp);
         root.addView(header);
 
         LinearLayout display = new LinearLayout(this);
@@ -1141,145 +1145,6 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private void showLauncher() {
-        page = Page.LAUNCHER;
-
-        LinearLayout root = pageRoot();
-
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView title = heading("Home");
-
-        Button vault = actionButton("אזור פרטי");
-        vault.setOnClickListener(v -> showPrivateApps());
-
-        Button gear = gearButton();
-
-        header.addView(vault, new LinearLayout.LayoutParams(dp(96), dp(46)));
-        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
-        titleLp.setMargins(dp(8), 0, 0, 0);
-        header.addView(title, titleLp);
-
-        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(52), dp(46));
-        gearLp.setMargins(dp(6), 0, 0, 0);
-        header.addView(gear, gearLp);
-        root.addView(header);
-
-        LinearLayout homeActions = new LinearLayout(this);
-        homeActions.setGravity(Gravity.CENTER_VERTICAL);
-
-        Button setHome = actionButton(isCurrentHome() ? "✓ מוגדר כמסך בית" : "הגדר כמסך הבית");
-        setHome.setTextColor(isCurrentHome() ? ACCENT_DARK : Color.WHITE);
-        setHome.setBackground(rounded(isCurrentHome() ? ACCENT_SOFT : ACCENT, 16));
-        setHome.setOnClickListener(v -> requestHomeLauncher());
-
-        Button refresh = actionButton("רענון");
-        refresh.setOnClickListener(v -> showLauncher());
-
-        homeActions.addView(setHome, new LinearLayout.LayoutParams(0, dp(48), 1f));
-        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(dp(82), dp(48));
-        refreshLp.setMargins(dp(8), 0, 0, 0);
-        homeActions.addView(refresh, refreshLp);
-        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, dp(54));
-        actionsLp.setMargins(0, dp(2), 0, dp(6));
-        root.addView(homeActions, actionsLp);
-
-        Set<String> hidden = hiddenSet();
-        List<AppInfo> apps = new ArrayList<>();
-        for (AppInfo app : launchableApps()) if (!hidden.contains(app.pkg)) apps.add(app);
-        sortApps(apps);
-
-        if (apps.isEmpty()) {
-            TextView empty = label("אין אפליקציות להצגה", 16, MUTED);
-            empty.setGravity(Gravity.CENTER);
-            root.addView(empty, new LinearLayout.LayoutParams(-1, dp(120)));
-        } else if (displayMode() == 2) {
-            LinearLayout list = new LinearLayout(this);
-            list.setOrientation(LinearLayout.VERTICAL);
-            for (AppInfo app : apps) {
-                LinearLayout row = new LinearLayout(this);
-                row.setGravity(Gravity.CENTER_VERTICAL);
-                row.setPadding(dp(10), 0, dp(10), 0);
-                row.setBackground(rounded(SURFACE, 18));
-                row.setElevation(dp(1));
-                row.setClickable(true);
-                row.setFocusable(true);
-                row.setOnClickListener(v -> launchPackage(app));
-
-                ImageView icon = new ImageView(this);
-                icon.setImageDrawable(app.icon);
-                icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-                row.addView(icon, new LinearLayout.LayoutParams(dp(iconSizeDp()), dp(iconSizeDp())));
-
-                if (showAppLabels()) {
-                    TextView name = label(app.label, 15, TEXT);
-                    name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-                    LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(0, -1, 1f);
-                    nameLp.setMargins(dp(12), 0, 0, 0);
-                    row.addView(name, nameLp);
-                }
-
-                list.addView(row, rowParams(72));
-            }
-            ScrollView scroll = new ScrollView(this);
-            scroll.setFillViewport(true);
-            scroll.addView(list);
-            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        } else {
-            GridLayout grid = new GridLayout(this);
-            grid.setColumnCount(displayMode() == 1 ? 5 : 4);
-            grid.setUseDefaultMargins(false);
-            grid.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-            for (AppInfo app : apps) addAppTile(grid, app);
-            ScrollView scroll = new ScrollView(this);
-            scroll.setFillViewport(true);
-            scroll.addView(grid);
-            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        }
-
-        TextView footer = sectionText(
-                "כדי שההסתרה תשפיע על מסך הבית של המכשיר, יש לבחור ב־CalculatorVault כמסך הבית."
-        );
-        footer.setGravity(Gravity.CENTER);
-        root.addView(footer, new LinearLayout.LayoutParams(-1, dp(42)));
-    }
-
-    private boolean isCurrentHome() {
-        if (Build.VERSION.SDK_INT >= 29) {
-            try {
-                RoleManager role = getSystemService(RoleManager.class);
-                return role != null
-                        && role.isRoleAvailable(RoleManager.ROLE_HOME)
-                        && role.isRoleHeld(RoleManager.ROLE_HOME);
-            } catch (Exception ignored) {
-                return false;
-            }
-        }
-        return false;
-    }
-
-    private void requestHomeLauncher() {
-        try {
-            if (Build.VERSION.SDK_INT >= 29) {
-                RoleManager role = getSystemService(RoleManager.class);
-                if (role != null
-                        && role.isRoleAvailable(RoleManager.ROLE_HOME)
-                        && !role.isRoleHeld(RoleManager.ROLE_HOME)) {
-                    startActivityForResult(
-                            role.createRequestRoleIntent(RoleManager.ROLE_HOME),
-                            1001
-                    );
-                    return;
-                }
-            }
-
-            startActivity(new Intent("android.settings.HOME_SETTINGS"));
-        } catch (Exception e) {
-            Toast.makeText(this, "פתח את הגדרות מסך הבית ובחר CalculatorVault", Toast.LENGTH_LONG).show();
-        }
-    }
-
     private void launchPackage(AppInfo app) {
         try {
             Intent intent = new Intent(Intent.ACTION_MAIN);
@@ -1308,8 +1173,6 @@ public class MainActivity extends Activity {
             showPrivateApps();
         } else if (page == Page.PRIVATE) {
             showCalculator();
-        } else if (page == Page.LAUNCHER) {
-            moveTaskToBack(true);
         } else {
             super.onBackPressed();
         }
