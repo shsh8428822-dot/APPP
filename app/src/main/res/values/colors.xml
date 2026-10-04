@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="green_50">#F3FBF6</color>
-    <color name="green_100">#E5F7EB</color>
-    <color name="green_200">#C9EFD5</color>
-    <color name="green_500">#37B46C</color>
-    <color name="green_600">#249B58</color>
-    <color name="green_700">#197A44</color>
-    <color name="white">#FFFFFF</color>
-    <color name="text">#183126</color>
-    <color name="text_muted">#6C7F75</color>
+    <color name="background">#F5F7FA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_alt">#EEF2F6</color>
+    <color name="accent">#2457D6</color>
+    <color name="accent_dark">#173E9D</color>
+    <color name="accent_soft">#E8EEFF</color>
+    <color name="text">#17202A</color>
+    <color name="text_secondary">#677381</color>
+    <color name="danger">#C63B3B</color>
 </resources>
