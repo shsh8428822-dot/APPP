@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
     private String secretBuffer = "";
 
     private Page page = Page.CALCULATOR;
+    private Page settingsReturnPage = Page.PRIVATE;
 
     private enum Page {
         CALCULATOR, PRIVATE, MANAGE, SETTINGS
@@ -151,9 +152,12 @@ public class MainActivity extends Activity {
     }
 
     private static final String[] BACKGROUND_NAMES = {
-            "ברירת מחדל", "תכלת עדין", "שמנת", "קרחון",
-            "שמיים", "מנטה", "לילך", "אפרסק",
-            "זהב", "אוקיינוס", "ורוד אבקתי", "יער עדין"
+            "ברירת מחדל", "תכלת עדין", "שמנת",
+            "קרחון", "שמיים", "מנטה",
+            "לילך", "אפרסק", "זהב",
+            "אוקיינוס", "ורוד אבקתי", "יער",
+            "שקיעה", "אורורה", "לילה כחול",
+            "סגול עמוק", "טורקיז", "פנינה"
     };
 
     private static final int[][] BACKGROUND_PALETTES = {
@@ -168,7 +172,13 @@ public class MainActivity extends Activity {
             {Color.rgb(255, 249, 232), Color.rgb(255, 229, 163)},
             {Color.rgb(236, 250, 255), Color.rgb(205, 238, 255)},
             {Color.rgb(255, 241, 245), Color.rgb(255, 221, 232)},
-            {Color.rgb(239, 248, 242), Color.rgb(211, 238, 219)}
+            {Color.rgb(239, 248, 242), Color.rgb(211, 238, 219)},
+            {Color.rgb(255, 233, 214), Color.rgb(245, 190, 158), Color.rgb(218, 129, 156)},
+            {Color.rgb(220, 247, 239), Color.rgb(178, 231, 255), Color.rgb(208, 191, 255)},
+            {Color.rgb(225, 238, 255), Color.rgb(109, 153, 210), Color.rgb(40, 60, 105)},
+            {Color.rgb(236, 221, 255), Color.rgb(177, 118, 218), Color.rgb(78, 49, 124)},
+            {Color.rgb(215, 250, 247), Color.rgb(104, 213, 207), Color.rgb(38, 139, 151)},
+            {Color.rgb(250, 252, 255), Color.rgb(221, 230, 240), Color.WHITE}
     };
 
     private int backgroundStyle() {
@@ -230,7 +240,10 @@ public class MainActivity extends Activity {
         button.setTextSize(21);
         button.setTextColor(ACCENT_DARK);
         button.setContentDescription("הגדרות");
-        button.setOnClickListener(v -> showSettings());
+        button.setOnClickListener(v -> {
+            settingsReturnPage = page;
+            showSettings();
+        });
         return button;
     }
 
@@ -287,7 +300,11 @@ public class MainActivity extends Activity {
         header.setGravity(Gravity.CENTER_VERTICAL);
 
         Button back = actionButton("← חזרה");
-        back.setOnClickListener(v -> showPrivateApps());
+        back.setOnClickListener(v -> {
+            if (settingsReturnPage == Page.CALCULATOR) showCalculator();
+            else if (settingsReturnPage == Page.MANAGE) showManageApps();
+            else showPrivateApps();
+        });
 
         TextView title = heading("הגדרות");
 
@@ -336,7 +353,7 @@ public class MainActivity extends Activity {
         int backgroundRows = (BACKGROUND_NAMES.length + 2) / 3;
         content.addView(backgrounds, new LinearLayout.LayoutParams(-1, dp(backgroundRows * 66 + 4)));
 
-        TextView wallpaperNote = sectionText("כל בחירת רקע נשמרת אוטומטית ומשנה גם את מסך המחשבון.");
+        TextView wallpaperNote = sectionText("18 רקעים מוכנים מראש — בחירה כאן משנה גם את מסך המחשבון ונשמרת אוטומטית.");
         wallpaperNote.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         wallpaperNote.setBackground(rounded(ACCENT_SOFT, 14));
         wallpaperNote.setPadding(dp(10), 0, dp(10), 0);
@@ -483,7 +500,6 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackground(backgroundDrawable());
         root.setPadding(dp(16), dp(8), dp(16), dp(10));
-        setBars();
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         root.setTextDirection(View.TEXT_DIRECTION_RTL);
         setBars();
