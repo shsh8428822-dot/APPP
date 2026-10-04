@@ -75,11 +75,11 @@ jobs:
           fi
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk CalculatorVault-v2.2.1.apk
+        run: cp app/build/outputs/apk/release/app-release.apk CalculatorVault-v2.2.2.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: CalculatorVault-v2.2.1-APK
+          name: CalculatorVault-v2.2.2-APK
           path: CalculatorVault-v2.2.0.apk
           if-no-files-found: error
