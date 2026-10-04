@@ -6,30 +6,52 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.widget.*;
+import android.view.View;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.GridLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import java.text.DecimalFormat;
-import java.util.*;
+import java.text.DecimalFormatSymbols;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "vault";
     private static final String KEY_HIDDEN = "hidden_packages";
     private static final String ME = "com.app.calculatorvault";
+    private static final String SECRET = "333=333";
 
-    private final int GREEN = Color.rgb(36, 155, 88);
-    private final int GREEN_DARK = Color.rgb(25, 122, 68);
-    private final int GREEN_SOFT = Color.rgb(229, 247, 235);
-    private final int BG = Color.rgb(243, 251, 246);
-    private final int TEXT = Color.rgb(24, 49, 38);
-    private final int MUTED = Color.rgb(108, 127, 117);
-    private final DecimalFormat fmt = new DecimalFormat("0.##########");
+    private static final int BG = Color.rgb(245, 247, 250);
+    private static final int SURFACE = Color.WHITE;
+    private static final int SURFACE_ALT = Color.rgb(238, 242, 246);
+    private static final int ACCENT = Color.rgb(36, 87, 214);
+    private static final int ACCENT_DARK = Color.rgb(23, 62, 157);
+    private static final int ACCENT_SOFT = Color.rgb(232, 238, 255);
+    private static final int TEXT = Color.rgb(23, 32, 42);
+    private static final int MUTED = Color.rgb(103, 115, 129);
+    private static final int DANGER = Color.rgb(198, 59, 59);
+
+    private final DecimalFormat fmt =
+            new DecimalFormat("0.##########", DecimalFormatSymbols.getInstance(Locale.US));
 
     private TextView expressionView;
     private TextView resultView;
@@ -40,15 +62,20 @@ public class MainActivity extends Activity {
     private String expression = "";
     private boolean fresh = true;
     private boolean showingResult = false;
-    private String secret = "";
+    private String secretBuffer = "";
+
+    private Page page = Page.CALCULATOR;
+
+    private enum Page {
+        CALCULATOR, PRIVATE, MANAGE, LAUNCHER
+    }
 
     @Override
-    protected void onCreate(Bundle saved) {
-        super.onCreate(saved);
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(Color.WHITE);
-        if (getIntent() != null && getIntent().getCategories() != null
-                && getIntent().getCategories().contains(Intent.CATEGORY_HOME)) {
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setBars();
+
+        if (isHomeIntent(getIntent())) {
             showLauncher();
         } else {
             showCalculator();
@@ -59,186 +86,265 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent != null && intent.getCategories() != null
-                && intent.getCategories().contains(Intent.CATEGORY_HOME)) {
+
+        if (isHomeIntent(intent)) {
             showLauncher();
         } else {
             showCalculator();
         }
     }
 
-    private int dp(int n) {
-        return Math.round(n * getResources().getDisplayMetrics().density);
+    private boolean isHomeIntent(Intent intent) {
+        return intent != null
+                && intent.getCategories() != null
+                && intent.getCategories().contains(Intent.CATEGORY_HOME);
+    }
+
+    private void setBars() {
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(SURFACE);
+        if (Build.VERSION.SDK_INT >= 23) {
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        }
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private GradientDrawable rounded(int color, int radiusDp) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radiusDp));
-        return d;
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(radiusDp));
+        return drawable;
     }
 
-    private TextView text(String value, float size, int color) {
-        TextView v = new TextView(this);
-        v.setText(value);
-        v.setTextSize(size);
-        v.setTextColor(color);
-        return v;
+    private TextView label(String value, float size, int color) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setGravity(Gravity.CENTER_VERTICAL);
+        return view;
     }
 
-    private TextView title(String value) {
-        TextView v = text(value, 23, TEXT);
-        v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        return v;
+    private TextView heading(String value) {
+        TextView view = label(value, 24, TEXT);
+        view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        return view;
     }
 
-    private Button smallButton(String value) {
-        Button b = new Button(this);
-        b.setText(value);
-        b.setTextSize(14);
-        b.setAllCaps(false);
-        b.setTextColor(GREEN_DARK);
-        b.setBackground(rounded(Color.WHITE, 16));
-        b.setPadding(dp(12), 0, dp(12), 0);
-        return b;
+    private Button actionButton(String value) {
+        Button button = new Button(this);
+        button.setText(value);
+        button.setTextSize(14);
+        button.setAllCaps(false);
+        button.setTextColor(ACCENT_DARK);
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(rounded(SURFACE, 16));
+        button.setPadding(dp(8), 0, dp(8), 0);
+        return button;
     }
 
-    private TextView calculatorKey(String value, boolean accent) {
-        TextView b = text(value, 21, accent ? Color.WHITE : TEXT);
-        b.setGravity(Gravity.CENTER);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(rounded(accent ? GREEN : Color.WHITE, 18));
-        b.setElevation(dp(2));
-        b.setClickable(true);
-        return b;
+    private TextView key(String value, int background, int foreground, float size) {
+        TextView button = label(value, size, foreground);
+        button.setGravity(Gravity.CENTER);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setBackground(rounded(background, 18));
+        button.setElevation(dp(2));
+        button.setClickable(true);
+        button.setFocusable(true);
+        button.setContentDescription(value);
+        return button;
     }
 
-    private LinearLayout page() {
+    private LinearLayout pageRoot() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(14), dp(8), dp(14), dp(8));
-        root.setLayoutDirection(android.view.View.LAYOUT_DIRECTION_RTL);
-        root.setTextDirection(android.view.View.TEXT_DIRECTION_RTL);
+        root.setPadding(dp(16), dp(8), dp(16), dp(10));
+        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        root.setTextDirection(View.TEXT_DIRECTION_RTL);
         setContentView(root);
         return root;
     }
 
+    private TextView sectionText(String value) {
+        TextView view = label(value, 13, MUTED);
+        view.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        return view;
+    }
+
+    private void addSpace(LinearLayout root, int h) {
+        root.addView(new TextView(this), new LinearLayout.LayoutParams(1, dp(h)));
+    }
+
     private void showCalculator() {
+        page = Page.CALCULATOR;
+
         input = "";
         stored = 0;
         op = null;
         expression = "";
         fresh = true;
         showingResult = false;
-        secret = "";
+        secretBuffer = "";
 
-        LinearLayout root = page();
+        LinearLayout root = pageRoot();
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView appTitle = title("Calculator");
-        header.addView(appTitle, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        TextView badge = text("CALC", 11, GREEN_DARK);
+        TextView badge = label("CALC", 11, ACCENT_DARK);
         badge.setGravity(Gravity.CENTER);
         badge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        badge.setBackground(rounded(GREEN_SOFT, 30));
-        header.addView(badge, new LinearLayout.LayoutParams(dp(64), dp(30)));
+        badge.setBackground(rounded(ACCENT_SOFT, 30));
+
+        TextView title = heading("Calculator");
+        title.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+
+        header.addView(badge, new LinearLayout.LayoutParams(dp(62), dp(30)));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(50), 1);
+        titleLp.setMargins(dp(10), 0, 0, 0);
+        header.addView(title, titleLp);
         root.addView(header);
 
-        LinearLayout displayCard = new LinearLayout(this);
-        displayCard.setOrientation(LinearLayout.VERTICAL);
-        displayCard.setGravity(Gravity.BOTTOM);
-        displayCard.setPadding(dp(16), dp(10), dp(16), dp(12));
-        displayCard.setBackground(rounded(Color.WHITE, 22));
+        LinearLayout display = new LinearLayout(this);
+        display.setOrientation(LinearLayout.VERTICAL);
+        display.setGravity(Gravity.BOTTOM);
+        display.setPadding(dp(18), dp(12), dp(18), dp(12));
+        display.setBackground(rounded(SURFACE, 24));
+        display.setElevation(dp(2));
 
-        expressionView = text("", 16, MUTED);
-        expressionView.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        expressionView = label("", 15, MUTED);
         expressionView.setSingleLine(true);
-        displayCard.addView(expressionView, new LinearLayout.LayoutParams(-1, dp(34)));
+        expressionView.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
 
-        resultView = text("0", 42, TEXT);
-        resultView.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        resultView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        resultView = label("0", 42, TEXT);
         resultView.setSingleLine(true);
-        displayCard.addView(resultView, new LinearLayout.LayoutParams(-1, dp(64)));
+        resultView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        resultView.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
 
-        LinearLayout.LayoutParams displayLp = new LinearLayout.LayoutParams(-1, dp(112));
-        displayLp.setMargins(0, dp(4), 0, dp(6));
-        root.addView(displayCard, displayLp);
+        display.addView(expressionView, new LinearLayout.LayoutParams(-1, dp(30)));
+        display.addView(resultView, new LinearLayout.LayoutParams(-1, dp(62)));
 
-        TextView sub = text("מחשבון רגיל", 12, MUTED);
-        sub.setGravity(Gravity.RIGHT);
-        sub.setPadding(dp(4), 0, dp(4), 0);
-        root.addView(sub, new LinearLayout.LayoutParams(-1, dp(22)));
+        LinearLayout.LayoutParams displayLp = new LinearLayout.LayoutParams(-1, dp(104));
+        displayLp.setMargins(0, dp(4), 0, dp(8));
+        root.addView(display, displayLp);
 
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(4);
-        grid.setRowCount(5);
-        grid.setUseDefaultMargins(false);
+        TextView hint = sectionText("מחשבון רגיל  •  הסימן שבחרת נשאר מוצג עד =");
+        root.addView(hint, new LinearLayout.LayoutParams(-1, dp(26)));
 
-        String[][] keys = {
-                {"AC", "⌫", "±", "÷"},
-                {"7", "8", "9", "×"},
-                {"4", "5", "6", "−"},
-                {"1", "2", "3", "+"},
-                {"%", "0", ".", "="}
+        LinearLayout utilityRow = new LinearLayout(this);
+        utilityRow.setGravity(Gravity.CENTER_VERTICAL);
+        utilityRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+
+        String[] utility = {"AC", "⌫", "±", "%"};
+        for (String value : utility) {
+            TextView button = key(value, SURFACE, TEXT, 16);
+            button.setOnClickListener(v -> pressKey(value));
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(50), 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            utilityRow.addView(button, lp);
+        }
+        root.addView(utilityRow, new LinearLayout.LayoutParams(-1, dp(56)));
+
+        LinearLayout keypad = new LinearLayout(this);
+        keypad.setOrientation(LinearLayout.HORIZONTAL);
+        keypad.setGravity(Gravity.CENTER);
+        keypad.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+
+        GridLayout numbers = new GridLayout(this);
+        numbers.setColumnCount(3);
+        numbers.setRowCount(4);
+        numbers.setUseDefaultMargins(false);
+        numbers.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+
+        String[][] numberKeys = {
+                {"7", "8", "9"},
+                {"4", "5", "6"},
+                {"1", "2", "3"},
+                {"0", ".", "00"}
         };
 
-        for (int row = 0; row < 5; row++) {
-            for (int col = 0; col < 4; col++) {
-                String key = keys[row][col];
-                boolean accent = key.equals("=") || isOperator(key);
-                TextView button = calculatorKey(key, accent);
-                button.setOnClickListener(v -> pressKey(key));
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 3; col++) {
+                String value = numberKeys[row][col];
+                TextView button = key(value, SURFACE, TEXT, 22);
+                button.setOnClickListener(v -> pressKey(value));
 
                 GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
                         GridLayout.spec(row, 1f),
-                        GridLayout.spec(col, 1f));
+                        GridLayout.spec(col, 1f)
+                );
                 lp.width = 0;
                 lp.height = 0;
-                lp.setMargins(dp(4), dp(4), dp(4), dp(4));
-                grid.addView(button, lp);
+                lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+                numbers.addView(button, lp);
             }
         }
 
-        LinearLayout.LayoutParams gridLp = new LinearLayout.LayoutParams(-1, 0, 1f);
-        root.addView(grid, gridLp);
+        LinearLayout operators = new LinearLayout(this);
+        operators.setOrientation(LinearLayout.VERTICAL);
+        operators.setGravity(Gravity.CENTER);
+        operators.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
 
-        TextView foot = text("33? לא. 333=333 פותח את האזור הפרטי", 11, MUTED);
-        foot.setGravity(Gravity.CENTER);
-        root.addView(foot, new LinearLayout.LayoutParams(-1, dp(30)));
+        String[] opKeys = {"÷", "×", "−", "+", "="};
+        for (String value : opKeys) {
+            boolean equals = value.equals("=");
+            TextView button = key(
+                    value,
+                    equals ? ACCENT : ACCENT_SOFT,
+                    equals ? Color.WHITE : ACCENT_DARK,
+                    22
+            );
+            button.setOnClickListener(v -> pressKey(value));
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 0, 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            operators.addView(button, lp);
+        }
+
+        LinearLayout.LayoutParams numbersLp = new LinearLayout.LayoutParams(0, -1, 3f);
+        numbersLp.setMargins(0, 0, dp(4), 0);
+        keypad.addView(numbers, numbersLp);
+
+        LinearLayout.LayoutParams opsLp = new LinearLayout.LayoutParams(0, -1, 1f);
+        opsLp.setMargins(dp(4), 0, 0, 0);
+        keypad.addView(operators, opsLp);
+
+        root.addView(keypad, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        TextView secretHint = sectionText("333=333");
+        secretHint.setGravity(Gravity.CENTER);
+        secretHint.setTextColor(Color.TRANSPARENT);
+        root.addView(secretHint, new LinearLayout.LayoutParams(-1, dp(18)));
 
         updateCalculatorDisplay();
     }
 
     private void pressKey(String key) {
-        secret += key;
-        if (secret.length() > 7) {
-            secret = secret.substring(secret.length() - 7);
+        secretBuffer += key;
+        if (secretBuffer.length() > SECRET.length()) {
+            secretBuffer = secretBuffer.substring(secretBuffer.length() - SECRET.length());
         }
-        if ("333=333".equals(secret)) {
-            secret = "";
+        if (SECRET.equals(secretBuffer)) {
+            secretBuffer = "";
             showPrivateApps();
             return;
         }
 
-        if (key.equals("AC")) {
-            input = "";
-            stored = 0;
-            op = null;
-            expression = "";
-            fresh = true;
-            showingResult = false;
-            updateCalculatorDisplay();
+        if ("AC".equals(key)) {
+            clearCalculator();
             return;
         }
 
-        if (key.equals("⌫")) {
+        if ("⌫".equals(key)) {
             if (showingResult) {
                 input = "";
                 showingResult = false;
+                fresh = false;
             } else if (!input.isEmpty()) {
                 input = input.substring(0, input.length() - 1);
             }
@@ -246,20 +352,16 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (key.equals("±")) {
-            if (!input.isEmpty() && !input.equals("0") && !input.equals("Error")) {
+        if ("±".equals(key)) {
+            if (!input.isEmpty() && !"Error".equals(input) && !"0".equals(input)) {
                 input = input.startsWith("-") ? input.substring(1) : "-" + input;
             }
             updateCalculatorDisplay();
             return;
         }
 
-        if (key.equals(".")) {
-            if (showingResult || fresh) {
-                input = "";
-                fresh = false;
-                showingResult = false;
-            }
+        if (".".equals(key)) {
+            startNewInputIfNeeded();
             if (!input.contains(".")) {
                 input += input.isEmpty() ? "0." : ".";
             }
@@ -267,22 +369,37 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (key.matches("\\d")) {
-            if (showingResult || fresh) {
-                input = "";
-                showingResult = false;
-                fresh = false;
+        if ("00".equals(key)) {
+            startNewInputIfNeeded();
+            if (input.length() < 14) {
+                input += input.isEmpty() || "0".equals(input) ? "0" : "00";
             }
-            if (input.length() < 14) input += key;
             updateCalculatorDisplay();
             return;
         }
 
-        if (key.equals("%")) {
-            if (!input.isEmpty() && !input.equals("Error")) {
+        if (key.matches("\\d")) {
+            startNewInputIfNeeded();
+            if (input.length() < 14) {
+                if ("0".equals(input)) {
+                    input = key;
+                } else {
+                    input += key;
+                }
+            }
+            updateCalculatorDisplay();
+            return;
+        }
+
+        if ("%".equals(key)) {
+            if (!input.isEmpty() && !"Error".equals(input)) {
                 try {
-                    input = fmt.format(Double.parseDouble(input) / 100.0);
-                } catch (Exception ignored) {}
+                    input = fmt.format(Double.parseDouble(input) / 100d);
+                    fresh = false;
+                    showingResult = false;
+                } catch (Exception ignored) {
+                    input = "Error";
+                }
             }
             updateCalculatorDisplay();
             return;
@@ -293,320 +410,539 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (key.equals("=")) {
+        if ("=".equals(key)) {
             calculateFinal();
         }
     }
 
-    private boolean isOperator(String s) {
-        return s.equals("+") || s.equals("−") || s.equals("×") || s.equals("÷");
+    private void startNewInputIfNeeded() {
+        if (showingResult || fresh) {
+            input = "";
+            showingResult = false;
+            fresh = false;
+        }
     }
 
-    private String prettyNumber(String value) {
-        if (value == null || value.isEmpty()) return "0";
-        return value;
+    private void clearCalculator() {
+        input = "";
+        stored = 0;
+        op = null;
+        expression = "";
+        fresh = true;
+        showingResult = false;
+        updateCalculatorDisplay();
+    }
+
+    private boolean isOperator(String value) {
+        return "+".equals(value)
+                || "−".equals(value)
+                || "×".equals(value)
+                || "÷".equals(value);
     }
 
     private void selectOperator(String newOp) {
-        if (input.isEmpty() || input.equals("Error")) return;
-
-        try {
-            stored = Double.parseDouble(input);
-        } catch (Exception e) {
+        if ("Error".equals(input)) {
+            clearCalculator();
             return;
         }
 
+        if (op != null && !input.isEmpty() && !fresh) {
+            calculatePending();
+        } else if (input.isEmpty()) {
+            return;
+        } else {
+            try {
+                stored = Double.parseDouble(input);
+            } catch (Exception e) {
+                return;
+            }
+        }
+
         op = newOp;
-        expression = prettyNumber(input) + " " + newOp;
+        expression = fmt.format(stored) + " " + newOp;
         input = "";
         fresh = true;
         showingResult = false;
         updateCalculatorDisplay();
     }
 
-    private void calculateFinal() {
-        if (op == null || input.isEmpty() || input.equals("Error")) return;
+    private void calculatePending() {
+        if (op == null || input.isEmpty() || "Error".equals(input)) {
+            return;
+        }
 
         try {
             double second = Double.parseDouble(input);
             double result;
 
-            if (op.equals("+")) result = stored + second;
-            else if (op.equals("−")) result = stored - second;
-            else if (op.equals("×")) result = stored * second;
-            else result = second == 0 ? Double.NaN : stored / second;
-
-            if (Double.isNaN(result) || Double.isInfinite(result)) {
-                expression = prettyNumber(fmt.format(stored)) + " " + op + " " + prettyNumber(input) + " =";
-                input = "Error";
+            if ("+".equals(op)) {
+                result = stored + second;
+            } else if ("−".equals(op)) {
+                result = stored - second;
+            } else if ("×".equals(op)) {
+                result = stored * second;
             } else {
-                expression = prettyNumber(fmt.format(stored)) + " " + op + " " + prettyNumber(input) + " =";
-                input = fmt.format(result);
+                result = second == 0 ? Double.NaN : stored / second;
             }
 
-            op = null;
-            fresh = true;
-            showingResult = true;
-            updateCalculatorDisplay();
+            if (Double.isNaN(result) || Double.isInfinite(result)) {
+                input = "Error";
+            } else {
+                stored = result;
+                input = fmt.format(result);
+            }
         } catch (Exception e) {
-            expression = prettyNumber(input) + " =";
             input = "Error";
-            op = null;
-            fresh = true;
-            showingResult = true;
-            updateCalculatorDisplay();
         }
+    }
+
+    private void calculateFinal() {
+        if (op == null || input.isEmpty() || "Error".equals(input)) {
+            return;
+        }
+
+        String left = fmt.format(stored);
+        String operatorUsed = op;
+        String right = input;
+
+        calculatePending();
+
+        expression = left + " " + operatorUsed + " " + right + " =";
+        op = null;
+        fresh = true;
+        showingResult = true;
+        updateCalculatorDisplay();
     }
 
     private void updateCalculatorDisplay() {
-        if (expressionView != null) expressionView.setText(expression);
-        if (resultView != null) resultView.setText(input.isEmpty() ? "0" : input);
+        if (expressionView != null) {
+            expressionView.setText(expression);
+        }
+        if (resultView != null) {
+            resultView.setText(input.isEmpty() ? "0" : input);
+        }
     }
 
     private Set<String> hiddenSet() {
-        return new HashSet<>(getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getStringSet(KEY_HIDDEN, new HashSet<>()));
+        return new HashSet<>(
+                getSharedPreferences(PREFS, MODE_PRIVATE)
+                        .getStringSet(KEY_HIDDEN, new HashSet<>())
+        );
     }
 
-    private void saveHidden(Set<String> set) {
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putStringSet(KEY_HIDDEN, new HashSet<>(set))
+    private void saveHidden(Set<String> packages) {
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putStringSet(KEY_HIDDEN, new HashSet<>(packages))
                 .apply();
     }
 
-    private List<ResolveInfoWrap> launchableApps() {
+    private List<AppInfo> launchableApps() {
         PackageManager pm = getPackageManager();
-        Intent i = new Intent(Intent.ACTION_MAIN);
-        i.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<android.content.pm.ResolveInfo> infos =
-                pm.queryIntentActivities(i, PackageManager.MATCH_ALL);
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.addCategory(Intent.CATEGORY_LAUNCHER);
 
-        List<ResolveInfoWrap> out = new ArrayList<>();
-        for (android.content.pm.ResolveInfo ri : infos) {
-            ActivityInfo ai = ri.activityInfo;
-            if (ai == null || ME.equals(ai.packageName)) continue;
-            CharSequence label = ri.loadLabel(pm);
-            if (label == null || label.toString().trim().isEmpty()) continue;
-            out.add(new ResolveInfoWrap(ai.packageName, label.toString(), ai.name));
+        List<android.content.pm.ResolveInfo> infos =
+                pm.queryIntentActivities(intent, PackageManager.MATCH_ALL);
+
+        List<AppInfo> apps = new ArrayList<>();
+
+        for (android.content.pm.ResolveInfo info : infos) {
+            ActivityInfo ai = info.activityInfo;
+            if (ai == null || ME.equals(ai.packageName)) {
+                continue;
+            }
+
+            CharSequence label = info.loadLabel(pm);
+            if (label == null || label.toString().trim().isEmpty()) {
+                continue;
+            }
+
+            apps.add(new AppInfo(
+                    ai.packageName,
+                    label.toString(),
+                    ai.name,
+                    info.loadIcon(pm)
+            ));
         }
 
-        Collections.sort(out, (a, b) -> a.label.compareToIgnoreCase(b.label));
-        return out;
+        Collections.sort(apps, (a, b) ->
+                a.label.toLowerCase(Locale.ROOT).compareTo(b.label.toLowerCase(Locale.ROOT)));
+
+        return apps;
     }
 
-    private static class ResolveInfoWrap {
-        String pkg, label, activity;
-        ResolveInfoWrap(String p, String l, String a) {
-            pkg = p;
-            label = l;
-            activity = a;
+    private static class AppInfo {
+        final String pkg;
+        final String label;
+        final String activity;
+        final android.graphics.drawable.Drawable icon;
+
+        AppInfo(String pkg, String label, String activity,
+                android.graphics.drawable.Drawable icon) {
+            this.pkg = pkg;
+            this.label = label;
+            this.activity = activity;
+            this.icon = icon;
         }
     }
 
     private void showPrivateApps() {
-        LinearLayout root = page();
+        page = Page.PRIVATE;
 
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout root = pageRoot();
 
-        TextView t = title("אזור פרטי");
-        top.addView(t, new LinearLayout.LayoutParams(0, dp(54), 1));
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        Button back = smallButton("מחשבון");
+        Button back = actionButton("← מחשבון");
         back.setOnClickListener(v -> showCalculator());
-        top.addView(back, new LinearLayout.LayoutParams(dp(98), dp(44)));
-        root.addView(top);
 
-        TextView info = text("כאן נמצאות האפליקציות שבחרת לשמור באזור הפרטי.", 14, MUTED);
-        info.setGravity(Gravity.RIGHT);
-        info.setPadding(dp(4), 0, dp(4), dp(6));
-        root.addView(info, new LinearLayout.LayoutParams(-1, dp(46)));
+        TextView title = heading("אזור פרטי");
+
+        header.addView(back, new LinearLayout.LayoutParams(dp(104), dp(46)));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        titleLp.setMargins(dp(10), 0, 0, 0);
+        header.addView(title, titleLp);
+        root.addView(header);
+
+        TextView info = sectionText("האפליקציות המוסתרות שלך נשמרות כאן. הן לא מוצגות במסך הבית של CalculatorVault.");
+        info.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        info.setBackground(rounded(ACCENT_SOFT, 16));
+        info.setPadding(dp(12), 0, dp(12), 0);
+        LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-1, dp(58));
+        infoLp.setMargins(0, dp(4), 0, dp(10));
+        root.addView(info, infoLp);
 
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
 
         Set<String> hidden = hiddenSet();
         int count = 0;
-        for (ResolveInfoWrap app : launchableApps()) {
+
+        for (AppInfo app : launchableApps()) {
             if (hidden.contains(app.pkg)) {
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(66));
-                lp.setMargins(0, dp(4), 0, dp(4));
-                list.addView(privateRow(app), lp);
+                list.addView(privateRow(app), rowParams(72));
                 count++;
             }
         }
 
         if (count == 0) {
-            TextView empty = text("עדיין לא בחרת אפליקציות להסתרה", 16, MUTED);
+            TextView empty = label("אין כרגע אפליקציות מוסתרות", 16, MUTED);
             empty.setGravity(Gravity.CENTER);
-            list.addView(empty, new LinearLayout.LayoutParams(-1, dp(130)));
+            empty.setBackground(rounded(SURFACE, 20));
+            list.addView(empty, new LinearLayout.LayoutParams(-1, dp(140)));
         }
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         scroll.addView(list);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        Button manage = smallButton("ניהול אפליקציות מוסתרות");
+        Button manage = actionButton("ניהול והסתרת אפליקציות");
         manage.setTextColor(Color.WHITE);
-        manage.setBackground(rounded(GREEN, 18));
+        manage.setTextSize(15);
+        manage.setBackground(rounded(ACCENT, 18));
         manage.setOnClickListener(v -> showManageApps());
 
-        LinearLayout.LayoutParams manageLp = new LinearLayout.LayoutParams(-1, dp(52));
-        manageLp.setMargins(0, dp(8), 0, 0);
+        LinearLayout.LayoutParams manageLp = new LinearLayout.LayoutParams(-1, dp(54));
+        manageLp.setMargins(0, dp(10), 0, 0);
         root.addView(manage, manageLp);
     }
 
-    private LinearLayout privateRow(ResolveInfoWrap app) {
+    private LinearLayout.LayoutParams rowParams(int h) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(h));
+        lp.setMargins(0, dp(4), 0, dp(4));
+        return lp;
+    }
+
+    private LinearLayout privateRow(AppInfo app) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), 0, dp(10), 0);
-        row.setBackground(rounded(Color.WHITE, 18));
+        row.setPadding(dp(10), 0, dp(8), 0);
+        row.setBackground(rounded(SURFACE, 18));
         row.setElevation(dp(1));
 
-        TextView icon = text("▣", 23, GREEN);
-        icon.setGravity(Gravity.CENTER);
-        row.addView(icon, new LinearLayout.LayoutParams(dp(50), dp(50)));
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(app.icon);
+        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
 
-        TextView name = text(app.label, 16, TEXT);
-        name.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(name, new LinearLayout.LayoutParams(0, -1, 1));
+        TextView name = label(app.label, 16, TEXT);
+        name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
 
-        Button open = smallButton("פתיחה");
+        Button open = actionButton("פתיחה");
         open.setOnClickListener(v -> launchPackage(app));
-        row.addView(open, new LinearLayout.LayoutParams(dp(82), dp(44)));
+
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(52), dp(52));
+        iconLp.setMargins(dp(8), 0, dp(8), 0);
+        row.addView(icon, iconLp);
+
+        row.addView(name, new LinearLayout.LayoutParams(0, -1, 1f));
+        row.addView(open, new LinearLayout.LayoutParams(dp(78), dp(44)));
 
         return row;
     }
 
     private void showManageApps() {
-        LinearLayout root = page();
+        page = Page.MANAGE;
 
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout root = pageRoot();
 
-        TextView t = title("בחירת אפליקציות");
-        top.addView(t, new LinearLayout.LayoutParams(0, dp(54), 1));
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        Button done = smallButton("סיום");
+        TextView title = heading("בחירת אפליקציות");
+
+        Button done = actionButton("סיום");
         done.setOnClickListener(v -> showPrivateApps());
-        top.addView(done, new LinearLayout.LayoutParams(dp(82), dp(44)));
-        root.addView(top);
 
-        TextView info = text("סמן אפליקציות שיופיעו באזור הפרטי.", 14, MUTED);
-        info.setGravity(Gravity.RIGHT);
-        root.addView(info, new LinearLayout.LayoutParams(-1, dp(38)));
+        header.addView(done, new LinearLayout.LayoutParams(dp(78), dp(46)));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        titleLp.setMargins(dp(10), 0, 0, 0);
+        header.addView(title, titleLp);
+        root.addView(header);
+
+        TextView info = sectionText("סמן ✓ ליד אפליקציה כדי להסתיר אותה מהמסך הראשי של CalculatorVault.");
+        root.addView(info, new LinearLayout.LayoutParams(-1, dp(42)));
 
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
 
         Set<String> hidden = hiddenSet();
-        for (ResolveInfoWrap app : launchableApps()) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(66));
-            lp.setMargins(0, dp(4), 0, dp(4));
-            list.addView(manageRow(app, hidden), lp);
+        for (AppInfo app : launchableApps()) {
+            list.addView(manageRow(app, hidden), rowParams(70));
         }
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         scroll.addView(list);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
     }
 
-    private LinearLayout manageRow(ResolveInfoWrap app, Set<String> hidden) {
+    private LinearLayout manageRow(AppInfo app, Set<String> hidden) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), 0, dp(8), 0);
-        row.setBackground(rounded(Color.WHITE, 18));
+        row.setPadding(dp(8), 0, dp(8), 0);
+        row.setBackground(rounded(SURFACE, 18));
         row.setElevation(dp(1));
 
-        TextView name = text(app.label, 16, TEXT);
-        name.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(name, new LinearLayout.LayoutParams(0, -1, 1));
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(app.icon);
+        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+
+        TextView name = label(app.label, 15, TEXT);
+        name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
 
         CheckBox box = new CheckBox(this);
+        box.setButtonTintList(new ColorStateList(
+                new int[][]{
+                        new int[]{android.R.attr.state_checked},
+                        new int[]{}
+                },
+                new int[]{
+                        ACCENT,
+                        MUTED
+                }
+        ));
         box.setChecked(hidden.contains(app.pkg));
-        box.setButtonTintList(android.content.res.ColorStateList.valueOf(GREEN));
-        box.setOnCheckedChangeListener((b, checked) -> {
-            Set<String> now = hiddenSet();
-            if (checked) now.add(app.pkg);
-            else now.remove(app.pkg);
-            saveHidden(now);
+        box.setContentDescription("הסתר " + app.label);
+
+        box.setOnCheckedChangeListener((button, checked) -> {
+            Set<String> updated = hiddenSet();
+            if (checked) {
+                updated.add(app.pkg);
+            } else {
+                updated.remove(app.pkg);
+            }
+            saveHidden(updated);
         });
-        row.addView(box, new LinearLayout.LayoutParams(dp(54), dp(54)));
+
+        row.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(0, -1, 1f);
+        nameLp.setMargins(dp(8), 0, dp(6), 0);
+        row.addView(name, nameLp);
+
+        row.addView(box, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
         return row;
     }
 
     private void showLauncher() {
-        LinearLayout root = page();
+        page = Page.LAUNCHER;
 
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout root = pageRoot();
 
-        TextView t = title("Home");
-        top.addView(t, new LinearLayout.LayoutParams(0, dp(54), 1));
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
 
-        Button vault = smallButton("פרטי");
+        TextView title = heading("Home");
+        Button vault = actionButton("אזור פרטי");
         vault.setOnClickListener(v -> showPrivateApps());
-        top.addView(vault, new LinearLayout.LayoutParams(dp(82), dp(44)));
-        root.addView(top);
 
-        TextView hint = text("מגירת אפליקציות", 14, MUTED);
-        hint.setGravity(Gravity.RIGHT);
-        root.addView(hint, new LinearLayout.LayoutParams(-1, dp(32)));
+        header.addView(vault, new LinearLayout.LayoutParams(dp(96), dp(46)));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
+        titleLp.setMargins(dp(10), 0, 0, 0);
+        header.addView(title, titleLp);
+        root.addView(header);
+
+        LinearLayout homeActions = new LinearLayout(this);
+        homeActions.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button setHome = actionButton(isCurrentHome() ? "✓ מוגדר כמסך בית" : "הגדר כמסך הבית");
+        setHome.setTextColor(isCurrentHome() ? ACCENT_DARK : Color.WHITE);
+        setHome.setBackground(rounded(
+                isCurrentHome() ? ACCENT_SOFT : ACCENT,
+                16
+        ));
+        setHome.setOnClickListener(v -> requestHomeLauncher());
+
+        Button refresh = actionButton("רענון");
+        refresh.setOnClickListener(v -> showLauncher());
+
+        homeActions.addView(setHome, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(dp(82), dp(48));
+        refreshLp.setMargins(dp(8), 0, 0, 0);
+        homeActions.addView(refresh, refreshLp);
+
+        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, dp(54));
+        actionsLp.setMargins(0, dp(2), 0, dp(6));
+        root.addView(homeActions, actionsLp);
+
+        TextView hint = sectionText("האפליקציות שסימנת כמוסתרות אינן מופיעות כאן.");
+        hint.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        root.addView(hint, new LinearLayout.LayoutParams(-1, dp(28)));
 
         GridLayout grid = new GridLayout(this);
         grid.setColumnCount(4);
         grid.setUseDefaultMargins(false);
+        grid.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
 
         Set<String> hidden = hiddenSet();
-        for (ResolveInfoWrap app : launchableApps()) {
-            if (hidden.contains(app.pkg)) continue;
+        int visibleCount = 0;
 
-            TextView tile = text(app.label, 13, TEXT);
+        for (AppInfo app : launchableApps()) {
+            if (hidden.contains(app.pkg)) {
+                continue;
+            }
+
+            LinearLayout tile = new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);
             tile.setGravity(Gravity.CENTER);
-            tile.setPadding(dp(6), dp(8), dp(6), dp(8));
-            tile.setBackground(rounded(Color.WHITE, 18));
+            tile.setPadding(dp(4), dp(6), dp(4), dp(6));
+            tile.setBackground(rounded(SURFACE, 18));
+            tile.setElevation(dp(1));
             tile.setClickable(true);
+            tile.setFocusable(true);
+            tile.setContentDescription("פתח " + app.label);
+
+            ImageView icon = new ImageView(this);
+            icon.setImageDrawable(app.icon);
+            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            tile.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+
+            TextView name = label(app.label, 12, TEXT);
+            name.setGravity(Gravity.CENTER);
+            name.setMaxLines(2);
+            tile.addView(name, new LinearLayout.LayoutParams(-1, dp(36)));
+
             tile.setOnClickListener(v -> launchPackage(app));
 
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
                     GridLayout.spec(GridLayout.UNDEFINED, 1f),
-                    GridLayout.spec(GridLayout.UNDEFINED, 1f));
+                    GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            );
             lp.width = 0;
-            lp.height = dp(90);
+            lp.height = dp(94);
             lp.setMargins(dp(4), dp(4), dp(4), dp(4));
             grid.addView(tile, lp);
+
+            visibleCount++;
         }
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(grid);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (visibleCount == 0) {
+            TextView empty = label("אין אפליקציות להצגה", 16, MUTED);
+            empty.setGravity(Gravity.CENTER);
+            root.addView(empty, new LinearLayout.LayoutParams(-1, dp(120)));
+        } else {
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.addView(grid);
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        }
 
-        TextView footer = text("האפליקציות שסומנו כפרטיות אינן מופיעות כאן.", 12, MUTED);
+        TextView footer = sectionText(
+                "כדי שההסתרה תשפיע על מסך הבית של המכשיר, יש לבחור ב־CalculatorVault כמסך הבית."
+        );
         footer.setGravity(Gravity.CENTER);
-        root.addView(footer, new LinearLayout.LayoutParams(-1, dp(38)));
+        root.addView(footer, new LinearLayout.LayoutParams(-1, dp(42)));
     }
 
-    private void launchPackage(ResolveInfoWrap app) {
-        try {
-            Intent i = new Intent(Intent.ACTION_MAIN);
-            i.addCategory(Intent.CATEGORY_LAUNCHER);
-            i.setComponent(new ComponentName(app.pkg, app.activity));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-        } catch (Exception ignored) {}
+    private boolean isCurrentHome() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                RoleManager role = getSystemService(RoleManager.class);
+                return role != null
+                        && role.isRoleAvailable(RoleManager.ROLE_HOME)
+                        && role.isRoleHeld(RoleManager.ROLE_HOME);
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+        return false;
     }
 
-    public void requestHomeLauncher() {
+    private void requestHomeLauncher() {
         try {
             if (Build.VERSION.SDK_INT >= 29) {
                 RoleManager role = getSystemService(RoleManager.class);
-                if (role != null && role.isRoleAvailable(RoleManager.ROLE_HOME)
+                if (role != null
+                        && role.isRoleAvailable(RoleManager.ROLE_HOME)
                         && !role.isRoleHeld(RoleManager.ROLE_HOME)) {
-                    startActivityForResult(role.createRequestRoleIntent(RoleManager.ROLE_HOME), 100);
+                    startActivityForResult(
+                            role.createRequestRoleIntent(RoleManager.ROLE_HOME),
+                            1001
+                    );
                     return;
                 }
             }
+
             startActivity(new Intent("android.settings.HOME_SETTINGS"));
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Toast.makeText(this, "פתח את הגדרות מסך הבית ובחר CalculatorVault", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void launchPackage(AppInfo app) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.setComponent(new ComponentName(app.pkg, app.activity));
+            startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent fallback = getPackageManager().getLaunchIntentForPackage(app.pkg);
+                if (fallback != null) {
+                    startActivity(fallback);
+                } else {
+                    Toast.makeText(this, "לא ניתן לפתוח את " + app.label, Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception ignored) {
+                Toast.makeText(this, "לא ניתן לפתוח את " + app.label, Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (page == Page.MANAGE) {
+            showPrivateApps();
+        } else if (page == Page.PRIVATE) {
+            showCalculator();
+        } else if (page == Page.LAUNCHER) {
+            moveTaskToBack(true);
+        } else {
+            super.onBackPressed();
+        }
     }
 }
