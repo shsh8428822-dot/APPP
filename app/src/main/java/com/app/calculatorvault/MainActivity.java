@@ -48,6 +48,14 @@ public class MainActivity extends Activity {
     private static final String KEY_ICON_SIZE = "icon_size";
     private static final String KEY_SORT = "app_sort";
 
+    private static final int WALLPAPER_COUNT = 1000;
+    private static final String[] WALLPAPER_FAMILIES = {
+            "פסטל", "אוקיינוס", "שקיעה", "אורורה", "לילה",
+            "ניאון", "זהב", "סגול", "טורקיז", "יער",
+            "ורוד", "תכלת", "גרפיט", "שמנת", "קרחון",
+            "אש", "לבנדר", "אמרלד", "כחול עמוק", "כסף"
+    };
+
     private static final int BG = Color.rgb(245, 247, 250);
     private static final int SURFACE = Color.WHITE;
     private static final int SURFACE_ALT = Color.rgb(238, 242, 246);
@@ -94,11 +102,14 @@ public class MainActivity extends Activity {
     }
 
     private void setBars() {
-        getWindow().setStatusBarColor(backgroundColor());
-        getWindow().setNavigationBarColor(SURFACE);
-        if (Build.VERSION.SDK_INT >= 23) {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
+        int bg = backgroundColor();
+        boolean dark = isDarkColor(bg);
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(dark ? Color.rgb(18, 22, 32) : SURFACE);
+        int flags = 0;
+        if (!dark && Build.VERSION.SDK_INT >= 23) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (!dark && Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        getWindow().getDecorView().setSystemUiVisibility(flags);
     }
 
     private int dp(int value) {
@@ -151,136 +162,103 @@ public class MainActivity extends Activity {
         return button;
     }
 
-    private static final String[] BACKGROUND_NAMES = {
-            "ברירת מחדל", "תכלת עדין", "שמנת",
-            "קרחון", "שמיים", "מנטה",
-            "לילך", "אפרסק", "זהב",
-            "אוקיינוס", "ורוד אבקתי", "יער",
-            "שקיעה", "אורורה", "לילה כחול",
-            "סגול עמוק", "טורקיז", "פנינה"
-    };
-
-    private static final int[][] BACKGROUND_PALETTES = {
-            {Color.rgb(245, 247, 250), Color.WHITE},
-            {Color.rgb(239, 247, 255), Color.rgb(220, 238, 255)},
-            {Color.rgb(250, 246, 238), Color.rgb(255, 242, 216)},
-            {Color.rgb(242, 247, 255), Color.rgb(217, 233, 255)},
-            {Color.rgb(238, 248, 255), Color.rgb(223, 243, 255)},
-            {Color.rgb(240, 251, 246), Color.rgb(216, 244, 232)},
-            {Color.rgb(247, 240, 255), Color.rgb(232, 217, 255)},
-            {Color.rgb(255, 244, 237), Color.rgb(255, 224, 204)},
-            {Color.rgb(255, 249, 232), Color.rgb(255, 229, 163)},
-            {Color.rgb(236, 250, 255), Color.rgb(205, 238, 255)},
-            {Color.rgb(255, 241, 245), Color.rgb(255, 221, 232)},
-            {Color.rgb(239, 248, 242), Color.rgb(211, 238, 219)},
-            {Color.rgb(255, 233, 214), Color.rgb(245, 190, 158), Color.rgb(218, 129, 156)},
-            {Color.rgb(220, 247, 239), Color.rgb(178, 231, 255), Color.rgb(208, 191, 255)},
-            {Color.rgb(225, 238, 255), Color.rgb(109, 153, 210), Color.rgb(40, 60, 105)},
-            {Color.rgb(236, 221, 255), Color.rgb(177, 118, 218), Color.rgb(78, 49, 124)},
-            {Color.rgb(215, 250, 247), Color.rgb(104, 213, 207), Color.rgb(38, 139, 151)},
-            {Color.rgb(250, 252, 255), Color.rgb(221, 230, 240), Color.WHITE}
-    };
-
     private int backgroundStyle() {
         int style = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_BACKGROUND, 0);
-        return Math.max(0, Math.min(style, BACKGROUND_PALETTES.length - 1));
+        return Math.max(0, Math.min(style, WALLPAPER_COUNT - 1));
+    }
+
+    private String wallpaperName(int index) {
+        int safe = Math.max(0, Math.min(index, WALLPAPER_COUNT - 1));
+        int family = safe / 50;
+        int variant = safe % 50;
+        return WALLPAPER_FAMILIES[family] + " • סגנון " + (variant + 1);
+    }
+
+    private float hueWrap(float value) {
+        float h = value % 360f;
+        return h < 0 ? h + 360f : h;
+    }
+
+    private int[] wallpaperColors(int index) {
+        int safe = Math.max(0, Math.min(index, WALLPAPER_COUNT - 1));
+        int family = safe / 50;
+        int variant = safe % 50;
+        float baseHue = hueWrap(family * 18f + variant * 7.2f);
+        float wobble = (variant % 5) * 0.035f;
+        float sat;
+        float val;
+        switch (family) {
+            case 0: sat = 0.18f + wobble; val = 0.98f; break;
+            case 1: sat = 0.58f + wobble; val = 0.96f; break;
+            case 2: sat = 0.66f + wobble; val = 0.98f; break;
+            case 3: sat = 0.55f + wobble; val = 0.97f; break;
+            case 4: sat = 0.72f + wobble; val = 0.58f; break;
+            case 5: sat = 0.90f + wobble; val = 0.98f; break;
+            case 6: sat = 0.64f + wobble; val = 0.95f; break;
+            case 7: sat = 0.60f + wobble; val = 0.92f; break;
+            case 8: sat = 0.62f + wobble; val = 0.92f; break;
+            case 9: sat = 0.55f + wobble; val = 0.82f; break;
+            case 10: sat = 0.48f + wobble; val = 0.98f; break;
+            case 11: sat = 0.38f + wobble; val = 0.99f; break;
+            case 12: sat = 0.20f + wobble; val = 0.34f; break;
+            case 13: sat = 0.24f + wobble; val = 0.99f; break;
+            case 14: sat = 0.28f + wobble; val = 0.96f; break;
+            case 15: sat = 0.86f + wobble; val = 0.98f; break;
+            case 16: sat = 0.40f + wobble; val = 0.95f; break;
+            case 17: sat = 0.62f + wobble; val = 0.90f; break;
+            case 18: sat = 0.82f + wobble; val = 0.56f; break;
+            default: sat = 0.12f + wobble; val = 0.92f; break;
+        }
+        sat = Math.min(0.98f, sat);
+        int c1 = Color.HSVToColor(new float[]{baseHue, sat, val});
+        int c2 = Color.HSVToColor(new float[]{hueWrap(baseHue + 24f + (variant % 7) * 3f), Math.min(0.98f, sat * 0.92f), Math.min(1f, val * 0.88f + 0.08f)});
+        int c3 = Color.HSVToColor(new float[]{hueWrap(baseHue + 210f), Math.min(0.98f, sat * 0.76f), Math.min(1f, val * 0.72f + 0.18f)});
+        if (family == 12 || family == 18) {
+            c1 = Color.HSVToColor(new float[]{baseHue, Math.min(0.9f, sat + 0.08f), Math.min(0.68f, val + 0.08f)});
+            c2 = Color.HSVToColor(new float[]{hueWrap(baseHue + 24f), Math.min(0.75f, sat + 0.02f), Math.min(0.52f, val + 0.10f)});
+            c3 = Color.HSVToColor(new float[]{hueWrap(baseHue + 48f), Math.min(0.72f, sat), Math.min(0.40f, val + 0.04f)});
+        }
+        return new int[]{c1, c2, c3};
+    }
+
+    private boolean isDarkColor(int color) {
+        double luminance = (0.2126 * Color.red(color) + 0.7152 * Color.green(color) + 0.0722 * Color.blue(color)) / 255.0;
+        return luminance < 0.52;
     }
 
     private int backgroundColor() {
-        return BACKGROUND_PALETTES[backgroundStyle()][0];
+        return wallpaperColors(backgroundStyle())[0];
+    }
+
+    private GradientDrawable wallpaperDrawableFor(int choice) {
+        int safe = Math.max(0, Math.min(choice, WALLPAPER_COUNT - 1));
+        int[] colors = wallpaperColors(safe);
+        GradientDrawable drawable = new GradientDrawable();
+        int variant = safe % 50;
+        if (variant % 5 == 1 || variant % 5 == 4) {
+            drawable.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+            drawable.setGradientCenter(0.22f + (variant % 4) * 0.18f, 0.20f + (variant % 3) * 0.22f);
+            drawable.setGradientRadius(dp(520));
+        } else if (variant % 5 == 2) {
+            drawable.setGradientType(GradientDrawable.SWEEP_GRADIENT);
+            drawable.setGradientCenter(0.42f, 0.46f);
+        } else {
+            drawable.setGradientType(GradientDrawable.LINEAR_GRADIENT);
+            GradientDrawable.Orientation[] orientations = {
+                    GradientDrawable.Orientation.TL_BR,
+                    GradientDrawable.Orientation.TR_BL,
+                    GradientDrawable.Orientation.BL_TR,
+                    GradientDrawable.Orientation.BR_TL
+            };
+            drawable.setOrientation(orientations[variant % orientations.length]);
+        }
+        drawable.setColors(colors);
+        drawable.setDither(true);
+        return drawable;
     }
 
     private GradientDrawable backgroundDrawable() {
-        int[] palette = BACKGROUND_PALETTES[backgroundStyle()];
-        GradientDrawable drawable = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                palette
-        );
-        drawable.setDither(true);
-        return drawable;
-    }
-
-    private String getSecretCode() {
-        String code = getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getString(KEY_SECRET, DEFAULT_SECRET);
-        if (code == null) return DEFAULT_SECRET;
-        code = code.replaceAll("\\D", "");
-        return code.length() >= 4 ? code : DEFAULT_SECRET;
-    }
-
-    private int displayMode() {
-        return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_LAYOUT, 0);
-    }
-
-    private boolean showAppLabels() {
-        return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_LABELS, true);
-    }
-
-    private int iconSizeDp() {
-        int size = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_ICON_SIZE, 1);
-        if (size == 0) return 36;
-        if (size == 2) return 54;
-        return 44;
-    }
-
-    private int appSort() {
-        return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_SORT, 0);
-    }
-
-    private void sortApps(List<AppInfo> apps) {
-        final boolean reverse = appSort() == 1;
-        Collections.sort(apps, (a, b) -> {
-            int result = a.label.toLowerCase(Locale.ROOT).compareTo(b.label.toLowerCase(Locale.ROOT));
-            return reverse ? -result : result;
-        });
-    }
-
-    private Button gearButton() {
-        Button button = actionButton("⚙");
-        button.setTextSize(21);
-        button.setTextColor(ACCENT_DARK);
-        button.setContentDescription("הגדרות");
-        button.setOnClickListener(v -> {
-            settingsReturnPage = page;
-            showSettings();
-        });
-        return button;
-    }
-
-    private Button settingChoice(String value, boolean selected) {
-        Button button = actionButton(selected ? "✓  " + value : value);
-        button.setTextSize(14);
-        button.setTextColor(selected ? ACCENT_DARK : TEXT);
-        button.setBackground(rounded(selected ? ACCENT_SOFT : SURFACE, 16));
-        return button;
-    }
-
-    private TextView settingsSection(String value) {
-        TextView view = label(value, 15, TEXT);
-        view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        view.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        return view;
-    }
-
-    private Button backgroundChoice(int choice, boolean selected) {
-        Button button = actionButton((selected ? "✓  " : "") + BACKGROUND_NAMES[choice]);
-        button.setTextSize(12);
-        button.setTextColor(TEXT);
-        GradientDrawable drawable = backgroundDrawableFor(choice);
-        drawable.setCornerRadius(dp(14));
-        drawable.setStroke(dp(selected ? 2 : 1), selected ? ACCENT : Color.argb(70, 100, 110, 120));
-        button.setBackground(drawable);
-        return button;
-    }
-
-    private GradientDrawable backgroundDrawableFor(int choice) {
-        int safe = Math.max(0, Math.min(choice, BACKGROUND_PALETTES.length - 1));
-        GradientDrawable drawable = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                BACKGROUND_PALETTES[safe]
-        );
-        drawable.setDither(true);
-        return drawable;
+        return wallpaperDrawableFor(backgroundStyle());
     }
 
     private void refreshCurrentPage() {
@@ -322,41 +300,89 @@ public class MainActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(0, dp(2), 0, dp(18));
         content.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        content.setFocusable(true);
-        content.setFocusableInTouchMode(true);
+        content.setFocusable(false);
+        content.setFocusableInTouchMode(false);
 
-        content.addView(settingsSection("רקעים לממשק — כולל המחשבון"), new LinearLayout.LayoutParams(-1, dp(38)));
+        content.addView(settingsSection("רקעים למחשבון ולאזור הפרטי — 1,000 אפשרויות"), new LinearLayout.LayoutParams(-1, dp(42)));
 
-        GridLayout backgrounds = new GridLayout(this);
-        backgrounds.setColumnCount(3);
-        backgrounds.setUseDefaultMargins(false);
-        backgrounds.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        int bgStyle = backgroundStyle();
+        final int currentWallpaper = backgroundStyle();
+        Button wallpaperPreview = actionButton(
+                "רקע " + (currentWallpaper + 1) + " מתוך " + WALLPAPER_COUNT + "\n" + wallpaperName(currentWallpaper)
+        );
+        wallpaperPreview.setTextSize(15);
+        wallpaperPreview.setTextColor(isDarkColor(backgroundColor()) ? Color.WHITE : TEXT);
+        wallpaperPreview.setGravity(Gravity.CENTER);
+        wallpaperPreview.setMinHeight(dp(110));
+        wallpaperPreview.setAllCaps(false);
+        wallpaperPreview.setBackground(wallpaperDrawableFor(currentWallpaper));
+        wallpaperPreview.setOnClickListener(v -> {
+            int next = (backgroundStyle() + 1) % WALLPAPER_COUNT;
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, next).apply();
+            setBars();
+            showSettings();
+        });
+        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(-1, dp(112));
+        previewLp.setMargins(0, 0, 0, dp(8));
+        content.addView(wallpaperPreview, previewLp);
 
-        for (int i = 0; i < BACKGROUND_NAMES.length; i++) {
-            final int choice = i;
-            Button button = backgroundChoice(choice, bgStyle == i);
+        LinearLayout wallpaperNav = new LinearLayout(this);
+        wallpaperNav.setGravity(Gravity.CENTER_VERTICAL);
+        wallpaperNav.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        String[] wallpaperActions = {"◀ הקודם", "🎲 אקראי", "הבא ▶"};
+        for (int i = 0; i < wallpaperActions.length; i++) {
+            final int action = i;
+            Button button = settingChoice(wallpaperActions[i], false);
             button.setOnClickListener(v -> {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, choice).apply();
+                int current = backgroundStyle();
+                int next;
+                if (action == 0) next = (current - 1 + WALLPAPER_COUNT) % WALLPAPER_COUNT;
+                else if (action == 1) next = (current * 73 + 137) % WALLPAPER_COUNT;
+                else next = (current + 1) % WALLPAPER_COUNT;
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, next).apply();
+                setBars();
                 showSettings();
             });
-            GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
-                    GridLayout.spec(GridLayout.UNDEFINED, 1f),
-                    GridLayout.spec(GridLayout.UNDEFINED, 1f)
-            );
-            lp.width = 0;
-            lp.height = dp(58);
-            lp.setMargins(dp(4), dp(4), dp(4), dp(4));
-            backgrounds.addView(button, lp);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
+            lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            wallpaperNav.addView(button, lp);
         }
-        int backgroundRows = (BACKGROUND_NAMES.length + 2) / 3;
-        content.addView(backgrounds, new LinearLayout.LayoutParams(-1, dp(backgroundRows * 66 + 4)));
+        content.addView(wallpaperNav, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        TextView wallpaperNote = sectionText("18 רקעים מוכנים מראש — בחירה כאן משנה גם את מסך המחשבון ונשמרת אוטומטית.");
+        LinearLayout jumpRow = new LinearLayout(this);
+        jumpRow.setGravity(Gravity.CENTER_VERTICAL);
+        jumpRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        EditText wallpaperNumber = new EditText(this);
+        wallpaperNumber.setHint("מספר 1–1000");
+        wallpaperNumber.setTextSize(15);
+        wallpaperNumber.setSingleLine(true);
+        wallpaperNumber.setGravity(Gravity.CENTER);
+        wallpaperNumber.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        wallpaperNumber.setBackground(rounded(SURFACE, 16));
+        Button goWallpaper = actionButton("עבור");
+        goWallpaper.setTextColor(Color.WHITE);
+        goWallpaper.setBackground(rounded(ACCENT, 16));
+        goWallpaper.setOnClickListener(v -> {
+            try {
+                int requested = Integer.parseInt(wallpaperNumber.getText().toString().trim());
+                requested = Math.max(1, Math.min(WALLPAPER_COUNT, requested));
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putInt(KEY_BACKGROUND, requested - 1).apply();
+                setBars();
+                showSettings();
+            } catch (Exception ignored) {
+                Toast.makeText(this, "הכנס מספר בין 1 ל־1000", Toast.LENGTH_SHORT).show();
+            }
+        });
+        jumpRow.addView(wallpaperNumber, new LinearLayout.LayoutParams(0, dp(50), 1f));
+        LinearLayout.LayoutParams goLp = new LinearLayout.LayoutParams(dp(82), dp(50));
+        goLp.setMargins(dp(6), 0, 0, 0);
+        jumpRow.addView(goWallpaper, goLp);
+        content.addView(jumpRow, new LinearLayout.LayoutParams(-1, dp(54)));
+
+        TextView wallpaperNote = sectionText("כל 1,000 הרקעים נוצרים בתוך האפליקציה, כך שה־APK לא מתנפח באלפי קבצי תמונה. כל בחירה נשמרת גם למחשבון וגם לאזור הפרטי.");
         wallpaperNote.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         wallpaperNote.setBackground(rounded(ACCENT_SOFT, 14));
         wallpaperNote.setPadding(dp(10), 0, dp(10), 0);
-        LinearLayout.LayoutParams wallpaperNoteLp = new LinearLayout.LayoutParams(-1, dp(48));
+        LinearLayout.LayoutParams wallpaperNoteLp = new LinearLayout.LayoutParams(-1, dp(64));
         wallpaperNoteLp.setMargins(0, dp(6), 0, dp(8));
         content.addView(wallpaperNote, wallpaperNoteLp);
 
@@ -491,7 +517,6 @@ public class MainActivity extends Activity {
 
         scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        content.requestFocus();
     }
 
     private LinearLayout pageRoot() {
@@ -799,7 +824,7 @@ public class MainActivity extends Activity {
         }
 
         op = newOp;
-        expression = fmt.format(stored) + " " + newOp;
+        expression = "";
         input = "";
         fresh = true;
         showingResult = false;
@@ -1094,7 +1119,7 @@ public class MainActivity extends Activity {
         header.addView(gear, gearLp);
         root.addView(header);
 
-        TextView info = sectionText("סמן ✓ ליד אפליקציה כדי להסתיר אותה מהמסך הראשי של CalculatorVault.");
+        TextView info = sectionText("סמן ✓ כדי להסתיר בתוך CalculatorVault. הסרה אוטומטית מה־Launcher הרגיל של Android אינה זמינה לאפליקציה רגילה בלי הרשאות מערכת/ניהול מכשיר.");
         root.addView(info, new LinearLayout.LayoutParams(-1, dp(42)));
 
         LinearLayout list = new LinearLayout(this);
