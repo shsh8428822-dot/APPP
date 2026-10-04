@@ -10,12 +10,28 @@ android {
         applicationId 'com.app.calculatorvault'
         minSdk 21
         targetSdk 35
-        versionCode 3
-        versionName '2.1.0'
+        versionCode 4
+        versionName '2.2.0'
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+
+    signingConfigs {
+        release {
+            storeFile rootProject.file("signing/CalculatorVault.keystore")
+            storePassword "CVaultStable2026!"
+            keyAlias "calculatorvault"
+            keyPassword "CVaultStable2026!"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
     }
 }
