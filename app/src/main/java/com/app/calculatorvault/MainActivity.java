@@ -261,6 +261,51 @@ public class MainActivity extends Activity {
         return wallpaperDrawableFor(backgroundStyle());
     }
 
+    private int displayMode() { return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_LAYOUT, 0); }
+
+    private boolean showAppLabels() { return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_LABELS, true); }
+
+    private int iconSizeDp() {
+        int size = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_ICON_SIZE, 1);
+        if (size == 0) return 36;
+        if (size == 2) return 54;
+        return 44;
+    }
+
+    private int appSort() { return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_SORT, 0); }
+
+    private void sortApps(List<AppInfo> apps) {
+        final boolean reverse = appSort() == 1;
+        Collections.sort(apps, (a, b) -> {
+            int result = a.label.toLowerCase(Locale.ROOT).compareTo(b.label.toLowerCase(Locale.ROOT));
+            return reverse ? -result : result;
+        });
+    }
+
+    private Button gearButton() {
+        Button button = actionButton("⚙");
+        button.setTextSize(21);
+        button.setTextColor(ACCENT_DARK);
+        button.setContentDescription("הגדרות");
+        button.setOnClickListener(v -> { settingsReturnPage = page; showSettings(); });
+        return button;
+    }
+
+    private Button settingChoice(String value, boolean selected) {
+        Button button = actionButton(selected ? "✓  " + value : value);
+        button.setTextSize(14);
+        button.setTextColor(selected ? ACCENT_DARK : TEXT);
+        button.setBackground(rounded(selected ? ACCENT_SOFT : SURFACE, 16));
+        return button;
+    }
+
+    private TextView settingsSection(String value) {
+        TextView view = label(value, 15, TEXT);
+        view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        view.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        return view;
+    }
+
     private void refreshCurrentPage() {
         if (page == Page.SETTINGS) showSettings();
         else if (page == Page.PRIVATE) showPrivateApps();
