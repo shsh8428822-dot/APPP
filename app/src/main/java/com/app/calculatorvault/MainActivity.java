@@ -118,6 +118,8 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
         root.setPadding(dp(14), dp(8), dp(14), dp(8));
+        root.setLayoutDirection(android.view.View.LAYOUT_DIRECTION_RTL);
+        root.setTextDirection(android.view.View.TEXT_DIRECTION_RTL);
         setContentView(root);
         return root;
     }
