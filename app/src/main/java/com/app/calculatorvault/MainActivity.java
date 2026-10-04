@@ -261,6 +261,12 @@ public class MainActivity extends Activity {
         return wallpaperDrawableFor(backgroundStyle());
     }
 
+    private String getSecretCode() {
+        String code = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SECRET, DEFAULT_SECRET);
+        if (code == null || code.length() < 4) return DEFAULT_SECRET;
+        return code;
+    }
+
     private int displayMode() { return getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_LAYOUT, 0); }
 
     private boolean showAppLabels() { return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_LABELS, true); }
